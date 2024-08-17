@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  postgres:
+    container_name: 'coach-wise-pg'
+    image: 'postgres:14.4-alpine'
+    environment:
+      POSTGRES_USER: 'coachwise'
+      POSTGRES_PASSWORD: 'passwd'
+      PGDATA: '/data/postgres'
+    volumes:
+      - '../coachwise-postgres:/data/postgres'
+    expose:
+      - '5432'
+    ports:
+      - '5432:5432'
+    restart: 'always'
+
+networks:
+  default:
+    driver: bridge
