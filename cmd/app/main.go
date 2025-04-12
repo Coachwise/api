@@ -3,8 +3,9 @@ package main
 import (
 	"coachwise/src/app"
 	"coachwise/src/config"
-	"coachwise/src/database"
 	"time"
+
+	database "github.com/socious-io/pkg_database"
 )
 
 func main() {

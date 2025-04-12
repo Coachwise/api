@@ -1,0 +1,1 @@
+UPDATE users SET password=$2, password_expired=false WHERE id=$1

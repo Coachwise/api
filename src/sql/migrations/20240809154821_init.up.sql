@@ -40,7 +40,8 @@ CREATE TABLE coaches (
 CREATE TABLE exercises (
     id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
     user_id uuid,
-    name character varying(128),
+    name VARCHAR(128) NOT NULL,
+    description text NOT NULL,
     public boolean DEFAULT false,
     created_at timestamp without time zone DEFAULT now(),
     updated_at timestamp without time zone DEFAULT now(),
@@ -73,7 +74,7 @@ CREATE TABLE plan_exercises (
     exercise_id uuid NOT NULL,
     plan_id uuid NOT NULL,
     exercise_order integer NOT NULL,
-    rest_time interval NOT NULL,
+    rest_time bigint NOT NULL,
     created_at timestamp without time zone DEFAULT now(),
     CONSTRAINT fk_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
     CONSTRAINT fk_plan FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE CASCADE
@@ -82,21 +83,14 @@ CREATE TABLE plan_exercises (
 
 CREATE TABLE sets (
     id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
+    name character varying(128),
     exercise_id uuid NOT NULL,
     set_number integer NOT NULL,
-    rest_time interval NOT NULL,
-    name character varying(128),
-    CONSTRAINT fk_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
-);
-
-
-CREATE TABLE reps (
-    id uuid DEFAULT public.uuid_generate_v4() PRIMARY KEY,
-    set_id uuid NOT NULL,
+    rest_time bigint NOT NULL,
     rep_count integer,
-    duration interval,
-    rest_time interval NOT NULL,
-    CONSTRAINT reps_check CHECK ((((rep_count IS NOT NULL) AND (duration IS NULL)) OR ((rep_count IS NULL) AND (duration IS NOT NULL)))),
-    CONSTRAINT reps_rep_count_check CHECK ((rep_count > 0)),
-    CONSTRAINT fk_set FOREIGN KEY (set_id) REFERENCES sets(id) ON DELETE CASCADE
+    duration bigint,    
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now(),
+    CONSTRAINT fk_exercise FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
+    CONSTRAINT reps_check CHECK ((((rep_count IS NOT NULL) AND (duration IS NULL)) OR ((rep_count IS NULL) AND (duration IS NOT NULL))))
 );

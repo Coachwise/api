@@ -1,0 +1,1 @@
+SELECT * FROM tokens_blacklist WHERE id IN(?)

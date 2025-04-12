@@ -42,3 +42,20 @@ func VerifyToken(tokenString string) (*Claims, error) {
 
 	return nil, errors.New("unknown claims type, cannot proceed")
 }
+
+func GenerateFullTokens(id string) (map[string]any, error) {
+	accessToken, err := GenerateToken(id, false)
+	if err != nil {
+		return nil, err
+	}
+	refreshToken, err := GenerateToken(id, true)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]any{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+	}, nil
+}

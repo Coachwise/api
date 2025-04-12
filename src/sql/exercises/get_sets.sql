@@ -1,0 +1,1 @@
+SELECT * FROM sets WHERE exercise_id=$1 ORDER BY set_number

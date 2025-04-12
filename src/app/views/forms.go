@@ -1,24 +1,17 @@
 package views
 
 import (
-	"coachwise/src/app/models"
-
-	"github.com/google/uuid"
+	"time"
 )
 
-type OrganizationForm struct {
-	Name        string     `json:"name" validate:"required,min=3,max=32"`
-	Description string     `json:"description" validate:"required,min=3,max=32"`
-	LogoID      *uuid.UUID `json:"logo_id"`
-}
-
-type SchemaForm struct {
-	Name        string  `json:"name"`
-	Description *string `json:"description"`
-	Public      bool    `json:"public"`
-	Attributes  []struct {
-		Name        string               `json:"name"`
-		Description *string              `json:"description"`
-		Type        models.AttributeType `json:"type"`
-	} `json:"attributes"`
+type ExerciseForm struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Public      bool   `json:"public"`
+	Sets        []struct {
+		Name     string         `json:"name"`
+		RestTime time.Duration  `json:"rest_time"`
+		RepCount *int           `json:"rep_count"`
+		Duration *time.Duration `json:"duration"`
+	} `json:"sets"`
 }

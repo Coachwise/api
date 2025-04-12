@@ -3,15 +3,17 @@ package tests_test
 import (
 	"coachwise/src/app"
 	"coachwise/src/config"
-	"coachwise/src/database"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
+
+	database "github.com/socious-io/pkg_database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -22,18 +24,41 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var configPath string
+var (
+	configPath   string
+	router       *gin.Engine
+	db           *sqlx.DB
+	focused      = false
+	authExecuted = false
+)
+
+// Setup the test environment before any tests run
+var _ = BeforeSuite(func() {
+	db, router = setupTestEnvironment()
+})
+
+// Drop the database after all tests have run
+var _ = AfterSuite(func() {
+	teardownTestEnvironment(db)
+})
+
+func TestSuite(t *testing.T) {
+	checkFocus()
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "API Suite")
+}
+
+var _ = Describe("coachwise Test Suite", func() {
+	Context("Ping", pingGroup)
+	Context("Auth", authGroup)
+	Context("Exercise", exerciseGroup)
+})
 
 func init() {
 	// We back to root dir on execute tests
 	os.Chdir("../")
 	// Define a flag for the config path
 	flag.StringVar(&configPath, "c", "test.config.yml", "Path to the configuration file")
-}
-
-func TestSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "API Suite")
 }
 
 func replaceAny(a, b gin.H) {
@@ -92,5 +117,14 @@ func teardownTestEnvironment(db *sqlx.DB) {
 	db.Close()
 	if err := database.DropDatabase(config.Config.Database.URL); err != nil {
 		log.Fatalf("Dropping database %v", err)
+	}
+}
+
+func checkFocus() {
+	for _, arg := range os.Args[1:] {
+		if strings.Contains(arg, "focus") {
+			focused = true
+			break
+		}
 	}
 }
