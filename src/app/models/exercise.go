@@ -83,6 +83,45 @@ func (e *Exercise) Create(ctx context.Context) error {
 	return database.Fetch(e, e.ID)
 }
 
+func (e *Exercise) Update(ctx context.Context) error {
+	tx, err := database.GetDB().Beginx()
+	if err != nil {
+		return err
+	}
+	rows, err := database.TxQuery(
+		ctx,
+		tx,
+		"exercises/update",
+		e.ID, e.Name, e.Description, e.Public,
+	)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	for rows.Next() {
+		if err := rows.StructScan(e); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	rows.Close()
+
+	for i := range e.Sets {
+		e.Sets[i].SetNumber = i + 1
+	}
+
+	if _, err := database.TxExecuteQuery(tx, "exercises/update_sets", e.Sets); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return database.Fetch(e, e.ID)
+}
+
 func (*Set) TableName() string {
 	return "sets"
 }

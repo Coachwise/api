@@ -44,4 +44,49 @@ func exerciseGroup(router *gin.Engine) {
 		}
 		c.JSON(http.StatusOK, ex)
 	})
+
+	g.PUT("/:id", func(c *gin.Context) {
+		ex, err := models.GetExrcise(uuid.MustParse(c.Param("id")))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		form := new(ExerciseForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		utils.Copy(form, ex)
+		ctx, _ := c.Get("ctx")
+		if err := ex.Update(ctx.(context.Context)); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, ex)
+	})
+
+	/*
+		 	g.DELETE("/:id", func(c *gin.Context) {
+				ex, err := models.GetExrcise(uuid.MustParse(c.Param("id")))
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				ctx, _ := c.Get("ctx")
+				if err := ex.Delete(ctx.(context.Context)); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "exercise deleted"})
+			})
+
+			g.GET("", func(c *gin.Context) {
+				exs, err := models.GetExercises()
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, exs)
+			})
+	*/
 }
