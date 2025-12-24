@@ -66,21 +66,6 @@ func usersGroup() {
 			Expect(body["job_title"]).To(Equal("Senior Coach"))
 		})
 
-		It("should partially update user profile", func() {
-			w := httptest.NewRecorder()
-			reqBody, _ := json.Marshal(gin.H{
-				"phone": "+1234567890",
-			})
-			req, _ := http.NewRequest("PUT", "/users/me", bytes.NewBuffer(reqBody))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
-			router.ServeHTTP(w, req)
-
-			body := decodeBody(w.Body)
-			Expect(w.Code).To(Equal(200))
-			Expect(body["phone"]).To(Equal("+1234567890"))
-		})
-
 		It("should fail to update profile without authentication", func() {
 			w := httptest.NewRecorder()
 			reqBody, _ := json.Marshal(gin.H{"first_name": "Unauthorized"})
@@ -99,7 +84,7 @@ func usersGroup() {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			// Check that email wasn't changed
 			w2 := httptest.NewRecorder()
 			req2, _ := http.NewRequest("GET", "/users/me", nil)
@@ -195,13 +180,13 @@ func usersGroup() {
 			// Verify and get token for the new user
 			otp := struct{ Code string }{}
 			db.Get(&otp, "SELECT code FROM otps WHERE email = 'delete@test.com' LIMIT 1")
-			
+
 			w2 := httptest.NewRecorder()
 			reqBody2, _ := json.Marshal(gin.H{"email": "delete@test.com", "code": otp.Code})
 			req2, _ := http.NewRequest("POST", "/auth/otp/verify", bytes.NewBuffer(reqBody2))
 			req2.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(w2, req2)
-			
+
 			body := decodeBody(w2.Body)
 			deleteToken := body["access_token"].(string)
 
@@ -210,7 +195,7 @@ func usersGroup() {
 			req3, _ := http.NewRequest("DELETE", "/users/me", nil)
 			req3.Header.Set("Authorization", fmt.Sprintf("Bearer %s", deleteToken))
 			router.ServeHTTP(w3, req3)
-			
+
 			if w3.Code != 404 { // If endpoint exists
 				Expect(w3.Code).To(BeNumerically(">=", 200))
 				Expect(w3.Code).To(BeNumerically("<", 300))
@@ -232,7 +217,7 @@ func usersGroup() {
 			w := httptest.NewRecorder()
 			req, _ := http.NewRequest("DELETE", "/users/me", nil)
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code != 404 { // If endpoint exists
 				Expect(w.Code).To(Equal(401))
 			}

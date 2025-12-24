@@ -7,4 +7,12 @@ func Init(r *gin.Engine) {
 	userGroup(r)
 	rootGroup(r)
 	exerciseGroup(r)
+	plansGroup(r)
+	planScheduleGroup(r)
+	workoutsGroup(r)
+	workoutLogGroup(r)
+	tagGroup(r)
+	feedsGroup(r)
+	mediaGroup(r)
+	messageGroup(r)
 }

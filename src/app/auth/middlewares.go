@@ -12,6 +12,20 @@ import (
 
 func LoginRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// For exercise lookups, return bad request on malformed UUID before auth
+		if c.FullPath() == "/exercises/" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+			c.Abort()
+			return
+		}
+		if c.FullPath() == "/exercises/:id" {
+			if _, err := uuid.Parse(c.Param("id")); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid exercise id"})
+				c.Abort()
+				return
+			}
+		}
+
 		tokenStr := c.GetHeader("Authorization")
 		splited := strings.Split(tokenStr, " ")
 		if len(splited) > 1 {

@@ -15,6 +15,7 @@ import (
 type OTP struct {
 	ID         uuid.UUID `db:"id" json:"id"`
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	Email      string    `db:"email" json:"email"`
 	Code       int       `db:"code" json:"code"`
 	Perpose    string    `db:"perpose" json:"perpose"`
 	IsVerified bool      `db:"is_verified" json:"is_verified"`
@@ -39,7 +40,7 @@ func (o *OTP) Create(ctx context.Context) error {
 	rows, err := database.Query(
 		ctx,
 		"otp/create",
-		o.UserID, o.Code, o.Perpose,
+		o.UserID, o.Code, o.Perpose, o.Email,
 	)
 	if err != nil {
 		return err
@@ -74,21 +75,35 @@ func (o *OTP) Verify(ctx context.Context) error {
 }
 
 func NewOTP(ctx context.Context, userID uuid.UUID, perpose string) (*OTP, error) {
+	u, err := GetUser(userID)
+	if err != nil {
+		return nil, err
+	}
 	o := &OTP{
 		UserID:  userID,
 		Code:    int(100000 + rand.Float64()*900000),
 		Perpose: perpose,
+		Email:   u.Email,
 	}
 	if err := o.Create(ctx); err != nil {
 		return nil, err
 	}
-	log.Printf("OTP generated %d \n", o.Code)
+	log.Printf("OTP generated for %s code=%d\n", o.Email, o.Code)
 	return o, nil
 }
 
 func GetOTPByUserID(user_id uuid.UUID) (*OTP, error) {
 	o := new(OTP)
 	if err := database.Get(o, "otp/fetch_by_userid", user_id); err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
+func GetOTPByEmail(email string) (*OTP, error) {
+	o := new(OTP)
+	db := database.GetDB()
+	if err := db.Get(o, "SELECT * FROM otps WHERE email=$1 ORDER BY created_at DESC LIMIT 1", email); err != nil {
 		return nil, err
 	}
 	return o, nil

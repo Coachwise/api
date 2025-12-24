@@ -9,14 +9,19 @@ import (
 var Config ConfigType
 
 type ConfigType struct {
-	Port     int    `mapstructure:"port"`
-	Debug    bool   `mapstructure:"debug"`
-	Secret   string `mapstructure:"string"`
-	Database struct {
+	Port        int    `mapstructure:"port"`
+	Debug       bool   `mapstructure:"debug"`
+	Secret      string `mapstructure:"string"`
+	OpenAPIPath string `mapstructure:"openapi_path"`
+	MediaBaseURL string `mapstructure:"media_base_url"`
+	Database    struct {
 		URL        string `mapstructure:"url"`
 		SqlDir     string `mapstructure:"sqldir"`
 		Migrations string `mapstructure:"migrations"`
 	} `mapstructure:"database"`
+	CORS struct {
+		AllowedOrigins []string `mapstructure:"allowed_origins"`
+	} `mapstructure:"cors"`
 }
 
 func Init(configPath string) {

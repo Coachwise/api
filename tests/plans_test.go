@@ -35,7 +35,7 @@ func plansGroup() {
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code == 201 {
 					body := decodeBody(w.Body)
 					exerciseIds = append(exerciseIds, body["id"].(string))
@@ -89,7 +89,7 @@ func plansGroup() {
 			req, _ := http.NewRequest("POST", "/plans", bytes.NewBuffer(reqBody))
 			req.Header.Set("Content-Type", "application/json")
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code != 404 { // If endpoint exists
 				Expect(w.Code).To(Equal(401))
 			}
@@ -104,7 +104,7 @@ func plansGroup() {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code != 404 { // If endpoint exists
 				Expect(w.Code).To(Equal(400))
 			}
@@ -124,7 +124,7 @@ func plansGroup() {
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code != 404 { // If endpoint exists
 					Expect(w.Code).To(BeNumerically(">=", 200))
 					Expect(w.Code).To(BeNumerically("<", 300))
@@ -145,7 +145,7 @@ func plansGroup() {
 					req.Header.Set("Content-Type", "application/json")
 					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 					router.ServeHTTP(w, req)
-					
+
 					if w.Code != 404 { // If endpoint exists
 						Expect(w.Code).To(BeNumerically(">=", 200))
 						Expect(w.Code).To(BeNumerically("<", 300))
@@ -160,7 +160,7 @@ func plansGroup() {
 				req, _ := http.NewRequest("GET", fmt.Sprintf("/plans/%s/exercises", planId), nil)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code == 200 {
 					var body []interface{}
 					json.NewDecoder(w.Body).Decode(&body)
@@ -175,7 +175,7 @@ func plansGroup() {
 				req, _ := http.NewRequest("DELETE", fmt.Sprintf("/plans/%s/exercises/%s", planId, exerciseIds[0]), nil)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code != 404 { // If endpoint exists
 					Expect(w.Code).To(BeNumerically(">=", 200))
 					Expect(w.Code).To(BeNumerically("<", 300))
@@ -201,27 +201,27 @@ func plansGroup() {
 				req, _ := http.NewRequest("POST", "/auth/register", bytes.NewBuffer(reqBody))
 				req.Header.Set("Content-Type", "application/json")
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code == 200 {
 					// Get user ID
 					otp := struct{ Code string }{}
 					db.Get(&otp, "SELECT code FROM otps WHERE email = 'client@test.com' LIMIT 1")
-					
+
 					w2 := httptest.NewRecorder()
 					reqBody2, _ := json.Marshal(gin.H{"email": "client@test.com", "code": otp.Code})
 					req2, _ := http.NewRequest("POST", "/auth/otp/verify", bytes.NewBuffer(reqBody2))
 					req2.Header.Set("Content-Type", "application/json")
 					router.ServeHTTP(w2, req2)
-					
+
 					if w2.Code == 200 {
 						body := decodeBody(w2.Body)
 						token := body["access_token"].(string)
-						
+
 						w3 := httptest.NewRecorder()
 						req3, _ := http.NewRequest("GET", "/users/me", nil)
 						req3.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 						router.ServeHTTP(w3, req3)
-						
+
 						if w3.Code == 200 {
 							body3 := decodeBody(w3.Body)
 							clientId = body3["id"].(string)
@@ -243,7 +243,6 @@ func plansGroup() {
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
 				if w.Code != 404 { // If endpoint exists
 					Expect(w.Code).To(BeNumerically(">=", 200))
 					Expect(w.Code).To(BeNumerically("<", 300))
@@ -257,7 +256,7 @@ func plansGroup() {
 				req, _ := http.NewRequest("GET", fmt.Sprintf("/plans/%s/assignments", planId), nil)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code == 200 {
 					var body []interface{}
 					json.NewDecoder(w.Body).Decode(&body)
@@ -272,7 +271,7 @@ func plansGroup() {
 				req, _ := http.NewRequest("DELETE", fmt.Sprintf("/plans/%s/assign/%s", planId, clientId), nil)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code != 404 { // If endpoint exists
 					Expect(w.Code).To(BeNumerically(">=", 200))
 					Expect(w.Code).To(BeNumerically("<", 300))
@@ -288,7 +287,7 @@ func plansGroup() {
 				req, _ := http.NewRequest("GET", fmt.Sprintf("/plans/%s", planId), nil)
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code == 200 {
 					body := decodeBody(w.Body)
 					Expect(body["id"]).To(Equal(planId))
@@ -301,7 +300,7 @@ func plansGroup() {
 			req, _ := http.NewRequest("GET", "/plans", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code == 200 {
 				var body []interface{}
 				json.NewDecoder(w.Body).Decode(&body)
@@ -314,7 +313,7 @@ func plansGroup() {
 			req, _ := http.NewRequest("GET", "/plans?public=true", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code == 200 {
 				var body []interface{}
 				json.NewDecoder(w.Body).Decode(&body)
@@ -332,7 +331,7 @@ func plansGroup() {
 			req, _ := http.NewRequest("GET", "/users/me/plans", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code == 200 {
 				var body []interface{}
 				json.NewDecoder(w.Body).Decode(&body)
@@ -353,7 +352,7 @@ func plansGroup() {
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code != 404 { // If endpoint exists
 					if w.Code == 200 {
 						body := decodeBody(w.Body)
@@ -370,7 +369,7 @@ func plansGroup() {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code != 404 { // If endpoint exists
 				Expect(w.Code).To(Equal(400))
 			}
@@ -383,7 +382,7 @@ func plansGroup() {
 				req, _ := http.NewRequest("PUT", fmt.Sprintf("/plans/%s", planId), bytes.NewBuffer(reqBody))
 				req.Header.Set("Content-Type", "application/json")
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code != 404 { // If endpoint exists
 					Expect(w.Code).To(Equal(401))
 				}
@@ -403,21 +402,21 @@ func plansGroup() {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code == 201 {
 				body := decodeBody(w.Body)
 				deletePlanId := body["id"].(string)
-				
+
 				// Delete the plan
 				w2 := httptest.NewRecorder()
 				req2, _ := http.NewRequest("DELETE", fmt.Sprintf("/plans/%s", deletePlanId), nil)
 				req2.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 				router.ServeHTTP(w2, req2)
-				
+
 				if w2.Code != 404 { // If endpoint exists
 					Expect(w2.Code).To(BeNumerically(">=", 200))
 					Expect(w2.Code).To(BeNumerically("<", 300))
-					
+
 					// Verify plan is deleted
 					w3 := httptest.NewRecorder()
 					req3, _ := http.NewRequest("GET", fmt.Sprintf("/plans/%s", deletePlanId), nil)
@@ -433,7 +432,7 @@ func plansGroup() {
 			req, _ := http.NewRequest("DELETE", "/plans/00000000-0000-0000-0000-000000000000", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			
+
 			if w.Code != 404 { // If endpoint exists
 				Expect(w.Code).To(Equal(400))
 			}
@@ -444,7 +443,7 @@ func plansGroup() {
 				w := httptest.NewRecorder()
 				req, _ := http.NewRequest("DELETE", fmt.Sprintf("/plans/%s", planId), nil)
 				router.ServeHTTP(w, req)
-				
+
 				if w.Code != 404 { // If endpoint exists
 					Expect(w.Code).To(Equal(401))
 				}

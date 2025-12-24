@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	database "github.com/socious-io/pkg_database"
@@ -35,12 +36,38 @@ type Set struct {
 	UpdatedAt  time.Time      `json:"updated_at" db:"updated_at"`
 }
 
-func (*Exercise) TableName() string {
+func (Exercise) TableName() string {
 	return "exercises"
 }
 
-func (*Exercise) FetchQuery() string {
+func (Exercise) FetchQuery() string {
 	return "exercises/fetch"
+}
+
+func ListExercises(ctx context.Context, public *bool, name string) ([]Exercise, error) {
+	var (
+		exercises []Exercise
+		fetchList []database.FetchList
+		ids       []interface{}
+	)
+
+	if err := database.QuerySelect("exercises/list", &fetchList, public, name); err != nil {
+		return nil, err
+	}
+
+	if len(fetchList) == 0 {
+		return exercises, nil
+	}
+
+	for _, f := range fetchList {
+		ids = append(ids, f.ID)
+	}
+
+	if err := database.Fetch(&exercises, ids...); err != nil {
+		return nil, err
+	}
+
+	return exercises, nil
 }
 
 func (e *Exercise) Create(ctx context.Context) error {
@@ -71,16 +98,22 @@ func (e *Exercise) Create(ctx context.Context) error {
 		e.Sets[i].SetNumber = i + 1
 	}
 
-	if _, err := database.TxExecuteQuery(tx, "exercises/create_sets", e.Sets); err != nil {
-		tx.Rollback()
-		return err
+	if len(e.Sets) > 0 {
+		if _, err := database.TxExecuteQuery(tx, "exercises/create_sets", e.Sets); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 
-	return database.Fetch(e, e.ID)
+	if err := database.Fetch(e, e.ID); err != nil {
+		return err
+	}
+	_ = e.SetsJson.Unmarshal(&e.Sets)
+	return nil
 }
 
 func (e *Exercise) Update(ctx context.Context) error {
@@ -106,20 +139,31 @@ func (e *Exercise) Update(ctx context.Context) error {
 	}
 	rows.Close()
 
-	for i := range e.Sets {
-		e.Sets[i].SetNumber = i + 1
-	}
-
-	if _, err := database.TxExecuteQuery(tx, "exercises/update_sets", e.Sets); err != nil {
+	// Rebuild sets to keep order and allow additions/removals
+	if _, err := tx.ExecContext(ctx, "DELETE FROM sets WHERE exercise_id=$1", e.ID); err != nil {
 		tx.Rollback()
 		return err
+	}
+	for i := range e.Sets {
+		e.Sets[i].ExerciseID = e.ID
+		e.Sets[i].SetNumber = i + 1
+	}
+	if len(e.Sets) > 0 {
+		if _, err := database.TxExecuteQuery(tx, "exercises/create_sets", e.Sets); err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 
-	return database.Fetch(e, e.ID)
+	if err := database.Fetch(e, e.ID); err != nil {
+		return err
+	}
+	_ = e.SetsJson.Unmarshal(&e.Sets)
+	return nil
 }
 
 func (*Set) TableName() string {
@@ -135,5 +179,18 @@ func GetExrcise(id uuid.UUID) (*Exercise, error) {
 	if err := database.Fetch(e, id); err != nil {
 		return nil, err
 	}
+	_ = e.SetsJson.Unmarshal(&e.Sets)
 	return e, nil
+}
+
+func DeleteExercise(ctx context.Context, id uuid.UUID) error {
+	rows, err := database.Query(ctx, "exercises/delete", id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return fmt.Errorf("exercise not found")
+	}
+	return nil
 }

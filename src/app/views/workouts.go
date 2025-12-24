@@ -1,0 +1,300 @@
+package views
+
+import (
+	"coachwise/src/app/auth"
+	"coachwise/src/app/models"
+	"coachwise/src/utils"
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+var allowedSessionTypes = map[string]bool{
+	"PLAN":      true,
+	"FREESTYLE": true,
+	"STRENGTH":  true,
+	"CLIMBING":  true,
+}
+
+func workoutsGroup(router *gin.Engine) {
+	g := router.Group("workouts/sessions")
+	g.Use(auth.LoginRequired())
+
+	// Create session
+	g.POST("", func(c *gin.Context) {
+		form := new(CreateSessionForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if !allowedSessionTypes[form.SessionType] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session type"})
+			return
+		}
+
+		user := c.MustGet("user").(*models.User)
+
+		ctx := c.MustGet("ctx")
+
+		session := &models.Session{
+			UserID:      user.ID,
+			SessionType: form.SessionType,
+			PlanID:      form.PlanID,
+			Status:      "ACTIVE",
+			StartedAt:   time.Now(),
+			Notes:       form.Notes,
+		}
+
+		if err := session.Create(ctx.(context.Context)); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, session)
+	})
+
+	// Get all sessions for user
+	g.GET("", func(c *gin.Context) {
+		user := c.MustGet("user").(*models.User)
+
+		ctx := c.MustGet("ctx")
+
+		sessions, err := models.GetUserSessions(ctx.(context.Context), user.ID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, sessions)
+	})
+
+	// Get active sessions
+	g.GET("/active", func(c *gin.Context) {
+		user := c.MustGet("user").(*models.User)
+
+		ctx := c.MustGet("ctx")
+
+		sessions, err := models.GetActiveSessions(ctx.(context.Context), user.ID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, sessions)
+	})
+
+	// Get session by ID
+	g.GET("/:id", func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+			return
+		}
+
+		session, err := models.GetSession(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, session)
+	})
+
+	// Update session
+	g.PUT("/:id", func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+			return
+		}
+
+		form := new(UpdateSessionForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		session, err := models.GetSession(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			return
+		}
+
+		ctx := c.MustGet("ctx")
+
+		if form.Status != nil {
+			session.Status = *form.Status
+			if *form.Status == "COMPLETED" || *form.Status == "ABANDONED" {
+				now := time.Now()
+				session.EndedAt = &now
+			}
+		}
+		if form.Notes != nil {
+			session.Notes = form.Notes
+		}
+
+		if err := session.Update(ctx.(context.Context)); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, session)
+	})
+
+	// Get session logs
+	g.GET("/:id/logs", func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+			return
+		}
+
+		ctx := c.MustGet("ctx")
+		logs, err := models.GetSessionWorkoutLogs(ctx.(context.Context), id)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, logs)
+	})
+}
+
+func workoutLogGroup(router *gin.Engine) {
+	g := router.Group("workouts/logs")
+	g.Use(auth.LoginRequired())
+
+	// Create workout log
+	g.POST("", func(c *gin.Context) {
+		form := new(CreateWorkoutLogForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx := c.MustGet("ctx")
+
+		log := &models.WorkoutLog{}
+		utils.Copy(form, log)
+		if form.Completed != nil {
+			log.Completed = *form.Completed
+		}
+		// Use created_at default; still stamp logged time for response consistency
+		log.CreatedAt = time.Now()
+
+		if err := log.Create(ctx.(context.Context)); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Add tags if provided
+		if len(form.Tags) > 0 {
+			for _, tagName := range form.Tags {
+				tag, err := models.GetOrCreateTag(ctx.(context.Context), tagName, false)
+				if err != nil {
+					continue
+				}
+				models.AddTagToWorkoutLog(ctx.(context.Context), log.ID, tag.ID)
+			}
+		}
+
+		c.JSON(http.StatusOK, log)
+	})
+
+	// Update workout log
+	g.PUT("/:id", func(c *gin.Context) {
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log id"})
+			return
+		}
+
+		form := new(UpdateWorkoutLogForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		log, err := models.GetWorkoutLog(id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "log not found"})
+			return
+		}
+
+		ctx := c.MustGet("ctx")
+
+		utils.Copy(form, log)
+
+		if err := log.Update(ctx.(context.Context)); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, log)
+	})
+
+	// Delete workout log
+	g.DELETE("/:id", func(c *gin.Context) {
+		// TODO: implement delete
+		c.JSON(http.StatusOK, gin.H{"message": "delete not implemented yet"})
+	})
+
+	// Add tag to workout log
+	g.POST("/:id/tags", func(c *gin.Context) {
+		logID, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log id"})
+			return
+		}
+
+		var body struct {
+			TagID string `json:"tag_id" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		tagID, err := uuid.Parse(body.TagID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tag id"})
+			return
+		}
+
+		ctx := c.MustGet("ctx")
+		if err := models.AddTagToWorkoutLog(ctx.(context.Context), logID, tagID); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "success"})
+	})
+}
+
+func tagGroup(router *gin.Engine) {
+	g := router.Group("tags")
+	g.Use(auth.LoginRequired())
+
+	// Search tags
+	g.GET("/search", func(c *gin.Context) {
+		query := c.DefaultQuery("query", "")
+		sportType := c.DefaultQuery("sport_type", "")
+		limit := 20
+		offset := 0
+
+		ctx := c.MustGet("ctx")
+		tags, totalCount, err := models.SearchTags(ctx.(context.Context), query, sportType, limit, offset)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"tags":        tags,
+			"total_count": totalCount,
+		})
+	})
+}

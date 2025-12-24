@@ -1,0 +1,1423 @@
+openapi: 3.0.3
+info:
+  title: Coachwise API
+  version: "0.1.0"
+  description: >
+    Early-stage REST API for Coachwise. All non-auth routes require
+    `Authorization: Bearer <access_token>`.
+servers:
+  - url: http://localhost:3000
+paths:
+  /ping:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Pong response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /auth/pre-register:
+    post:
+      summary: Check email/username availability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+      responses:
+        "200":
+          description: Availability status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    example: AVAILABLE
+                  username:
+                    type: string
+                    example: EXISTS
+  /auth/register:
+    post:
+      summary: Register user (email/password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterForm'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+                    format: uuid
+  /auth/login:
+    post:
+      summary: Login with email or username
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginForm'
+      responses:
+        "200":
+          description: Tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+  /auth/refresh:
+    post:
+      summary: Refresh tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+  /auth/logout:
+    post:
+      summary: Logout and blacklist access token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success
+  /auth/otp:
+    post:
+      summary: Send OTP to email (auth)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Success
+  /auth/otp/verify:
+    post:
+      summary: Verify OTP and issue tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  oneOf:
+                    - type: string
+                    - type: integer
+      responses:
+        "200":
+          description: Tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+  /auth/password/forget:
+    post:
+      summary: Send OTP for password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Success
+  /auth/password:
+    put:
+      summary: Change password (normal or direct)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/DirectPasswordChangeForm'
+                - $ref: '#/components/schemas/NormalPasswordChangeForm'
+      responses:
+        "202":
+          description: Password updated
+  /users:
+    get:
+      summary: List users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: username
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+  /users/me:
+    get:
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    put:
+      summary: Update current user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    delete:
+      summary: Delete current user
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deleted
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /exercises:
+    get:
+      summary: List exercises
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: public
+          schema:
+            type: boolean
+        - in: query
+          name: name
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exercises
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exercise'
+    post:
+      summary: Create exercise
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExerciseForm'
+      responses:
+        "201":
+          description: Created exercise
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exercise'
+  /exercises/{id}:
+    get:
+      summary: Get exercise
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Exercise
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exercise'
+    put:
+      summary: Update exercise
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExerciseForm'
+      responses:
+        "200":
+          description: Updated exercise
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Exercise'
+    delete:
+      summary: Delete exercise
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Deleted
+  /workouts/sessions:
+    get:
+      summary: List user sessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+    post:
+      summary: Create workout session
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionForm'
+      responses:
+        "200":
+          description: Created session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+  /workouts/sessions/active:
+    get:
+      summary: List active sessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+  /workouts/sessions/{id}:
+    get:
+      summary: Get session
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+    put:
+      summary: Update session
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSessionForm'
+      responses:
+        "200":
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+  /workouts/sessions/{id}/logs:
+    get:
+      summary: Get session logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkoutLog'
+  /workouts/logs:
+    post:
+      summary: Create workout log
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkoutLogForm'
+      responses:
+        "200":
+          description: Created log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLog'
+  /workouts/logs/{id}:
+    put:
+      summary: Update workout log
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkoutLogForm'
+      responses:
+        "200":
+          description: Updated log
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutLog'
+    delete:
+      summary: Delete workout log (not implemented; placeholder response)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Placeholder delete response
+  /workouts/logs/{id}/tags:
+    post:
+      summary: Add tag to workout log
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Tag added
+  /tags/search:
+    get:
+      summary: Search tags
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: query
+          schema:
+            type: string
+        - in: query
+          name: sport_type
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tags with count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+                  total_count:
+                    type: integer
+  /feeds:
+    get:
+      summary: List feeds
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Feeds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feeds:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feed'
+                  total_count:
+                    type: integer
+    post:
+      summary: Create feed post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedCreateForm'
+      responses:
+        "200":
+          description: Created feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feed'
+  /feeds/{id}:
+    get:
+      summary: Get feed
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feed'
+    delete:
+      summary: Delete feed
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Deleted
+  /feeds/{id}/like:
+    post:
+      summary: Like feed
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Liked
+    delete:
+      summary: Unlike feed
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Unliked
+  /feeds/{id}/comments:
+    get:
+      summary: List feed comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedComment'
+    post:
+      summary: Create feed comment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedCommentForm'
+      responses:
+        "200":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedComment'
+  /media:
+    post:
+      summary: Create media metadata
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaCreateForm'
+      responses:
+        "200":
+          description: Created media
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+    get:
+      summary: List media for current user
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Media list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Media'
+  /messages:
+    post:
+      summary: Send a message
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreateForm'
+      responses:
+        "200":
+          description: Created message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+  /messages/threads:
+    get:
+      summary: List threads (latest message per peer)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Threads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MessageThread'
+  /messages/{peer_id}:
+    get:
+      summary: List messages with a peer
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: peer_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+  /messages/{peer_id}/read:
+    post:
+      summary: Mark thread as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: peer_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Success
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthTokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token:
+          type: string
+    RegisterForm:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+    LoginForm:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        password:
+          type: string
+      required: [password]
+    DirectPasswordChangeForm:
+      type: object
+      properties:
+        password:
+          type: string
+      required: [password]
+    NormalPasswordChangeForm:
+      type: object
+      properties:
+        current_password:
+          type: string
+        password:
+          type: string
+      required: [current_password, password]
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        job_title:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        avatar_id:
+          type: string
+          format: uuid
+          nullable: true
+        avatar:
+          type: object
+          properties:
+            url:
+              type: string
+              nullable: true
+            filename:
+              type: string
+              nullable: true
+        status:
+          type: string
+        password_expired:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UserUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        job_title:
+          type: string
+        bio:
+          type: string
+        phone:
+          type: string
+        username:
+          type: string
+    Exercise:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+        public:
+          type: boolean
+        sets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExerciseSet'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ExerciseSet:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        exercise_id:
+          type: string
+          format: uuid
+        set_number:
+          type: integer
+        rest_time:
+          type: integer
+          description: nanoseconds
+        rep_count:
+          type: integer
+          nullable: true
+        duration:
+          type: integer
+          description: nanoseconds
+          nullable: true
+    ExerciseForm:
+      type: object
+      required: [name, description]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        public:
+          type: boolean
+        sets:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              rest_time:
+                type: integer
+              rep_count:
+                type: integer
+                nullable: true
+              duration:
+                type: integer
+                nullable: true
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        session_type:
+          type: string
+          enum: [PLAN, FREESTYLE, STRENGTH, CLIMBING]
+        plan_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateSessionForm:
+      type: object
+      required: [session_type]
+      properties:
+        session_type:
+          type: string
+          enum: [PLAN, FREESTYLE, STRENGTH, CLIMBING]
+        plan_id:
+          type: string
+          format: uuid
+        notes:
+          type: string
+    UpdateSessionForm:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, ABANDONED]
+        notes:
+          type: string
+    WorkoutLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        exercise_id:
+          type: string
+          format: uuid
+          nullable: true
+        exercise_name:
+          type: string
+          nullable: true
+        set_number:
+          type: integer
+        reps:
+          type: integer
+          nullable: true
+        weight:
+          type: number
+          format: float
+          nullable: true
+        rpe:
+          type: number
+          format: float
+          nullable: true
+        duration_seconds:
+          type: integer
+          nullable: true
+        grade:
+          type: string
+          nullable: true
+        completed:
+          type: boolean
+        attempts:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+    CreateWorkoutLogForm:
+      type: object
+      required: [session_id, set_number]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        exercise_id:
+          type: string
+          format: uuid
+        exercise_name:
+          type: string
+        set_number:
+          type: integer
+        reps:
+          type: integer
+        weight:
+          type: number
+        rpe:
+          type: number
+        duration_seconds:
+          type: integer
+        grade:
+          type: string
+        completed:
+          type: boolean
+        attempts:
+          type: integer
+        notes:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+    UpdateWorkoutLogForm:
+      type: object
+      properties:
+        reps:
+          type: integer
+        weight:
+          type: number
+        rpe:
+          type: number
+        duration_seconds:
+          type: integer
+        grade:
+          type: string
+        completed:
+          type: boolean
+        attempts:
+          type: integer
+        notes:
+          type: string
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        normalized_name:
+          type: string
+        is_system:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    FeedMedia:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        feed_id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [IMAGE, VIDEO]
+        url:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        order_index:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    Feed:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        body:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        visibility:
+          type: string
+          enum: [PUBLIC, PRIVATE]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedMedia'
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        like_count:
+          type: integer
+        comment_count:
+          type: integer
+        liked:
+          type: boolean
+    FeedCreateForm:
+      type: object
+      properties:
+        body:
+          type: string
+        location:
+          type: string
+        visibility:
+          type: string
+          enum: [PUBLIC, PRIVATE]
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedMediaForm'
+        tags:
+          type: array
+          items:
+            type: string
+    FeedMediaForm:
+      type: object
+      required: [kind, url]
+      properties:
+        kind:
+          type: string
+          enum: [IMAGE, VIDEO]
+        url:
+          type: string
+        thumbnail_url:
+          type: string
+        order_index:
+          type: integer
+    FeedCommentForm:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+    FeedComment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        feed_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sender_id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+          format: uuid
+        body:
+          type: string
+        media_id:
+          type: string
+          format: uuid
+          nullable: true
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    Media:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+        filename:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    MediaCreateForm:
+      type: object
+      required: [url, filename]
+      properties:
+        url:
+          type: string
+        filename:
+          type: string
+    MessageCreateForm:
+      type: object
+      required: [recipient_id, body]
+      properties:
+        recipient_id:
+          type: string
+          format: uuid
+        body:
+          type: string
+        media_id:
+          type: string
+          format: uuid
+          nullable: true
+    MessageThread:
+      allOf:
+        - $ref: '#/components/schemas/Message'
+        - type: object
+          properties:
+            peer_id:
+              type: string
+              format: uuid

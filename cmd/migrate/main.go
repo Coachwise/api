@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -24,7 +23,11 @@ func main() {
 
 	command := os.Args[1]
 
-	migrationPath := fmt.Sprintf("file://%s", config.Config.Database.Migrations)
+	absMigrations, err := filepath.Abs(config.Config.Database.Migrations)
+	if err != nil {
+		log.Fatal(err)
+	}
+	migrationPath := fmt.Sprintf("file://%s", absMigrations)
 
 	switch command {
 	case "new":
@@ -50,19 +53,14 @@ func main() {
 		if len(os.Args) < 3 {
 			log.Fatal("Expected a version number for the 'force' command.")
 		}
-		version := os.Args[2]
 		m, err := migrate.New(migrationPath, config.Config.Database.URL)
 		if err != nil {
 			log.Fatal(err)
 		}
-		versionInt, err := strconv.Atoi(version)
-		if err != nil {
-			log.Fatal("Invalid version number.")
-		}
-		if err := m.Force(versionInt); err != nil {
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 			log.Fatal(err)
 		}
-		log.Printf("Forced migration to version %d", versionInt)
+		log.Println("Migrations forced applied successfully!")
 	default:
 		log.Fatalf("Unknown command: %s", command)
 	}

@@ -11,42 +11,44 @@ import (
 )
 
 type RegisterForm struct {
-	FirstName *string `json:"first_name"`
-	LastName  *string `json:"last_name"`
+	FirstName *string `json:"first_name" binding:"omitempty"`
+	LastName  *string `json:"last_name" binding:"omitempty"`
+	FullName  *string `json:"full_name" binding:"required_without=FirstName"`
 	Username  *string `json:"username"`
-	Email     string  `json:"email" validate:"required,email"`
-	Password  *string `json:"password"`
+	Email     string  `json:"email" binding:"required,email"`
+	Password  *string `json:"password" binding:"required,min=8"`
 }
 
 type LoginForm struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
+	Email    string `json:"email" binding:"required_without=Username,omitempty,email"`
+	Username string `json:"username" binding:"required_without=Email"`
+	Password string `json:"password" binding:"required,min=8"`
 }
 
 type OTPSendForm struct {
-	Email string `json:"email" validate:"required,email"`
+	Email string `json:"email" binding:"required,email"`
 }
 type OTPConfirmForm struct {
-	Email string `json:"email" validate:"required,email"`
-	Code  int    `json:"code" validate:"required"`
+	Email string      `json:"email" binding:"required,email"`
+	Code  interface{} `json:"code" binding:"required"`
 }
 
 type RefreshTokenForm struct {
-	RefreshToken string `json:"refresh_token" validate:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 type PreRegisterForm struct {
-	Email    *string `json:"email" validate:"email"`
+	Email    *string `json:"email" binding:"omitempty,email"`
 	Username *string `json:"username"`
 }
 
 type NormalPasswordChangeForm struct {
-	CurrentPassword string `json:"current_password" validate:"required"`
-	Password        string `json:"password" validate:"required"`
+	CurrentPassword string `json:"current_password" binding:"required"`
+	Password        string `json:"password" binding:"required,min=8"`
 }
 
 type DirectPasswordChangeForm struct {
-	Password string `json:"password" validate:"required"`
+	Password string `json:"password" binding:"required,min=8"`
 }
 
 func HashPassword(password string) (string, error) {
