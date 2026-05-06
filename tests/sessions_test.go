@@ -278,7 +278,9 @@ var sessionsGroup = func() {
 
 		It("should update session notes successfully", func() {
 			payload := gin.H{
-				"notes": "Updated session notes",
+				"notes":     "Updated session notes",
+				"intensity": 7,
+				"quality":   4,
 			}
 
 			body, _ := json.Marshal(payload)
@@ -295,11 +297,15 @@ var sessionsGroup = func() {
 			json.NewDecoder(resp.Body).Decode(&result)
 
 			Expect(result["notes"]).To(Equal("Updated session notes"))
+			Expect(result["intensity"]).To(Equal(float64(7)))
+			Expect(result["quality"]).To(Equal(float64(4)))
 		})
 
 		It("should complete session and set ended_at timestamp", func() {
 			payload := gin.H{
-				"status": "COMPLETED",
+				"status":    "COMPLETED",
+				"intensity": 9,
+				"quality":   5,
 			}
 
 			body, _ := json.Marshal(payload)
@@ -317,11 +323,15 @@ var sessionsGroup = func() {
 
 			Expect(result["status"]).To(Equal("COMPLETED"))
 			Expect(result["ended_at"]).NotTo(BeNil())
+			Expect(result["intensity"]).To(Equal(float64(9)))
+			Expect(result["quality"]).To(Equal(float64(5)))
 		})
 
 		It("should fail with invalid session ID", func() {
 			payload := gin.H{
-				"notes": "Test",
+				"notes":     "Test",
+				"intensity": 5,
+				"quality":   5,
 			}
 
 			body, _ := json.Marshal(payload)
@@ -337,7 +347,9 @@ var sessionsGroup = func() {
 
 		It("should fail without authentication", func() {
 			payload := gin.H{
-				"notes": "Test",
+				"notes":     "Test",
+				"intensity": 5,
+				"quality":   5,
 			}
 
 			body, _ := json.Marshal(payload)
@@ -441,6 +453,232 @@ var sessionsGroup = func() {
 			router.ServeHTTP(resp, req)
 
 			Expect(resp.Code).To(Equal(http.StatusUnauthorized))
+		})
+	})
+
+	Describe("GET /workouts/sessions/analytics/daily - Get Daily Analytics", func() {
+		BeforeEach(func() {
+			// Create completed sessions with workout logs for analytics
+			// Session 1
+			session1Payload := gin.H{
+				"session_type": "STRENGTH",
+				"notes":        "Morning workout",
+			}
+			session1Body, _ := json.Marshal(session1Payload)
+			session1Req := httptest.NewRequest(http.MethodPost, "/workouts/sessions", bytes.NewBuffer(session1Body))
+			session1Req.Header.Set("Content-Type", "application/json")
+			session1Req.Header.Set("Authorization", "Bearer "+token)
+			session1Resp := httptest.NewRecorder()
+			router.ServeHTTP(session1Resp, session1Req)
+
+			var session1Result gin.H
+			json.NewDecoder(session1Resp.Body).Decode(&session1Result)
+			session1ID := session1Result["id"].(string)
+
+			// Add workout logs to session 1
+			for i := 1; i <= 3; i++ {
+				logPayload := gin.H{
+					"session_id":  session1ID,
+					"exercise_id": exerciseID,
+					"set_number":  i,
+					"reps":        10,
+					"weight":      100.0,
+					"rpe":         8.0,
+					"completed":   true,
+				}
+				logBody, _ := json.Marshal(logPayload)
+				logReq := httptest.NewRequest(http.MethodPost, "/workouts/logs", bytes.NewBuffer(logBody))
+				logReq.Header.Set("Content-Type", "application/json")
+				logReq.Header.Set("Authorization", "Bearer "+token)
+				logResp := httptest.NewRecorder()
+				router.ServeHTTP(logResp, logReq)
+			}
+
+			// Complete session 1
+			completePayload := gin.H{
+				"status": "COMPLETED",
+			}
+			completeBody, _ := json.Marshal(completePayload)
+			completeReq := httptest.NewRequest(http.MethodPut, "/workouts/sessions/"+session1ID, bytes.NewBuffer(completeBody))
+			completeReq.Header.Set("Content-Type", "application/json")
+			completeReq.Header.Set("Authorization", "Bearer "+token)
+			completeResp := httptest.NewRecorder()
+			router.ServeHTTP(completeResp, completeReq)
+		})
+
+		It("should return daily analytics with aggregated data", func() {
+			req := httptest.NewRequest(http.MethodGet, "/workouts/sessions/analytics/daily?limit=10", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			Expect(resp.Code).To(Equal(http.StatusOK))
+
+			var result gin.H
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			// Check pagination structure
+			Expect(result["items"]).NotTo(BeNil())
+			Expect(result["total"]).NotTo(BeNil())
+
+			items := result["items"].([]interface{})
+			Expect(len(items)).To(BeNumerically(">", 0))
+
+			// Verify first analytics item structure
+			firstItem := items[0].(map[string]interface{})
+			Expect(firstItem["date"]).NotTo(BeNil())
+			Expect(firstItem["sessions_count"]).To(BeNumerically(">", 0))
+			Expect(firstItem["total_sets"]).NotTo(BeNil())
+			Expect(firstItem["exercises_completed"]).NotTo(BeNil())
+		})
+
+		It("should return empty items array when no completed sessions exist", func() {
+			// Create new user with no sessions
+			registerPayload := gin.H{
+				"first_name": "New",
+				"last_name":  "User",
+				"username":   "newanalytics",
+				"email":      "newanalytics@test.com",
+				"password":   "Password123!",
+			}
+			registerBody, _ := json.Marshal(registerPayload)
+			registerReq := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBuffer(registerBody))
+			registerReq.Header.Set("Content-Type", "application/json")
+			registerResp := httptest.NewRecorder()
+			router.ServeHTTP(registerResp, registerReq)
+
+			var registerResult gin.H
+			json.NewDecoder(registerResp.Body).Decode(&registerResult)
+			newUserID := registerResult["id"].(string)
+
+			// Activate user
+			db.Exec("UPDATE users SET status = 'ACTIVE' WHERE id = $1", newUserID)
+
+			// Login
+			loginPayload := gin.H{
+				"username": "newanalytics@test.com",
+				"password": "Password123!",
+			}
+			loginBody, _ := json.Marshal(loginPayload)
+			loginReq := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBuffer(loginBody))
+			loginReq.Header.Set("Content-Type", "application/json")
+			loginResp := httptest.NewRecorder()
+			router.ServeHTTP(loginResp, loginReq)
+
+			var loginResult gin.H
+			json.NewDecoder(loginResp.Body).Decode(&loginResult)
+			newToken := loginResult["token"].(string)
+
+			// Get analytics for user with no sessions
+			req := httptest.NewRequest(http.MethodGet, "/workouts/sessions/analytics/daily", nil)
+			req.Header.Set("Authorization", "Bearer "+newToken)
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			Expect(resp.Code).To(Equal(http.StatusOK))
+
+			var result gin.H
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			items := result["items"].([]interface{})
+			Expect(len(items)).To(Equal(0))
+			Expect(result["total"]).To(Equal(float64(0)))
+		})
+
+		It("should support pagination parameters", func() {
+			req := httptest.NewRequest(http.MethodGet, "/workouts/sessions/analytics/daily?limit=5&offset=0", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			Expect(resp.Code).To(Equal(http.StatusOK))
+
+			var result gin.H
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			Expect(result["items"]).NotTo(BeNil())
+			Expect(result["total"]).NotTo(BeNil())
+		})
+
+		It("should fail without authentication", func() {
+			req := httptest.NewRequest(http.MethodGet, "/workouts/sessions/analytics/daily", nil)
+
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			Expect(resp.Code).To(Equal(http.StatusUnauthorized))
+		})
+
+		It("should aggregate multiple sessions on the same day", func() {
+			// Create second session for the same day
+			session2Payload := gin.H{
+				"session_type": "STRENGTH",
+				"notes":        "Evening workout",
+			}
+			session2Body, _ := json.Marshal(session2Payload)
+			session2Req := httptest.NewRequest(http.MethodPost, "/workouts/sessions", bytes.NewBuffer(session2Body))
+			session2Req.Header.Set("Content-Type", "application/json")
+			session2Req.Header.Set("Authorization", "Bearer "+token)
+			session2Resp := httptest.NewRecorder()
+			router.ServeHTTP(session2Resp, session2Req)
+
+			var session2Result gin.H
+			json.NewDecoder(session2Resp.Body).Decode(&session2Result)
+			session2ID := session2Result["id"].(string)
+
+			// Add workout logs to session 2
+			for i := 1; i <= 2; i++ {
+				logPayload := gin.H{
+					"session_id":  session2ID,
+					"exercise_id": exerciseID,
+					"set_number":  i,
+					"reps":        12,
+					"weight":      80.0,
+					"completed":   true,
+				}
+				logBody, _ := json.Marshal(logPayload)
+				logReq := httptest.NewRequest(http.MethodPost, "/workouts/logs", bytes.NewBuffer(logBody))
+				logReq.Header.Set("Content-Type", "application/json")
+				logReq.Header.Set("Authorization", "Bearer "+token)
+				logResp := httptest.NewRecorder()
+				router.ServeHTTP(logResp, logReq)
+			}
+
+			// Complete session 2
+			completePayload := gin.H{
+				"status": "COMPLETED",
+			}
+			completeBody, _ := json.Marshal(completePayload)
+			completeReq := httptest.NewRequest(http.MethodPut, "/workouts/sessions/"+session2ID, bytes.NewBuffer(completeBody))
+			completeReq.Header.Set("Content-Type", "application/json")
+			completeReq.Header.Set("Authorization", "Bearer "+token)
+			completeResp := httptest.NewRecorder()
+			router.ServeHTTP(completeResp, completeReq)
+
+			// Get analytics
+			req := httptest.NewRequest(http.MethodGet, "/workouts/sessions/analytics/daily?limit=10", nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			Expect(resp.Code).To(Equal(http.StatusOK))
+
+			var result gin.H
+			json.NewDecoder(resp.Body).Decode(&result)
+
+			items := result["items"].([]interface{})
+			Expect(len(items)).To(BeNumerically(">", 0))
+
+			// Find today's analytics
+			todayItem := items[0].(map[string]interface{})
+
+			// Should have 2 sessions (from BeforeEach + this test)
+			Expect(todayItem["sessions_count"]).To(BeNumerically(">=", 2))
+
+			// Should have aggregated sets (3 from session 1 + 2 from session 2 = 5)
+			Expect(todayItem["total_sets"]).To(BeNumerically(">=", 5))
 		})
 	})
 }

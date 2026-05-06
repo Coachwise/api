@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	database "github.com/socious-io/pkg_database"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -57,18 +59,25 @@ func workoutsGroup(router *gin.Engine) {
 	})
 
 	// Get all sessions for user
-	g.GET("", func(c *gin.Context) {
+	g.GET("", paginate(), func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
-
 		ctx := c.MustGet("ctx")
+		page, _ := c.Get("paginate")
 
-		sessions, err := models.GetUserSessions(ctx.(context.Context), user.ID)
+		items, total, err := models.GetUserSessionsPaginated(ctx.(context.Context), user.ID, page.(database.Paginate))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, sessions)
+		if items == nil {
+			items = []models.Session{}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": items,
+			"total": total,
+		})
 	})
 
 	// Get active sessions
@@ -103,6 +112,28 @@ func workoutsGroup(router *gin.Engine) {
 		c.JSON(http.StatusOK, session)
 	})
 
+	// Get daily analytics
+	g.GET("/analytics/daily", paginate(), func(c *gin.Context) {
+		user := c.MustGet("user").(*models.User)
+		ctx := c.MustGet("ctx")
+		page, _ := c.Get("paginate")
+
+		items, total, err := models.ListDailyAnalytics(ctx.(context.Context), user.ID, page.(database.Paginate))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if items == nil {
+			items = []models.DailyAnalytics{}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": items,
+			"total": total,
+		})
+	})
+
 	// Update session
 	g.PUT("/:id", func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
@@ -123,6 +154,12 @@ func workoutsGroup(router *gin.Engine) {
 			return
 		}
 
+		user := c.MustGet("user").(*models.User)
+		if session.UserID != user.ID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
 		ctx := c.MustGet("ctx")
 
 		if form.Status != nil {
@@ -135,6 +172,9 @@ func workoutsGroup(router *gin.Engine) {
 		if form.Notes != nil {
 			session.Notes = form.Notes
 		}
+
+		session.Intensity = &form.Intensity
+		session.Quality = &form.Quality
 
 		if err := session.Update(ctx.(context.Context)); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -224,6 +264,18 @@ func workoutLogGroup(router *gin.Engine) {
 			return
 		}
 
+		session, err := models.GetSession(log.SessionID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			return
+		}
+
+		user := c.MustGet("user").(*models.User)
+		if session.UserID != user.ID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
 		ctx := c.MustGet("ctx")
 
 		utils.Copy(form, log)
@@ -238,8 +290,20 @@ func workoutLogGroup(router *gin.Engine) {
 
 	// Delete workout log
 	g.DELETE("/:id", func(c *gin.Context) {
-		// TODO: implement delete
-		c.JSON(http.StatusOK, gin.H{"message": "delete not implemented yet"})
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log id"})
+			return
+		}
+		user := c.MustGet("user").(*models.User)
+		ctx := c.MustGet("ctx").(context.Context)
+
+		if err := models.DeleteWorkoutLog(ctx, id, user.ID); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.Status(http.StatusNoContent)
 	})
 
 	// Add tag to workout log

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	database "github.com/socious-io/pkg_database"
 )
 
 func planScheduleGroup(router *gin.Engine) {
@@ -35,11 +36,8 @@ func planScheduleGroup(router *gin.Engine) {
 			UserID:       user.ID,
 			PlanID:       form.PlanID,
 			ScheduledFor: scheduledFor,
+			Notes:        form.Notes,
 		}
-		if form.Status != nil {
-			ps.Status = *form.Status
-		}
-		ps.Notes = form.Notes
 
 		if err := models.CreatePlanSchedule(ctx.(context.Context), ps); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -48,31 +46,21 @@ func planScheduleGroup(router *gin.Engine) {
 		c.JSON(http.StatusCreated, ps)
 	})
 
-	g.GET("", func(c *gin.Context) {
+	g.GET("", paginate(), func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
-		fromStr := c.Query("from")
-		toStr := c.Query("to")
-		if fromStr == "" || toStr == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "from and to are required (YYYY-MM-DD)"})
-			return
-		}
-		from, err := time.Parse("2006-01-02", fromStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid from date"})
-			return
-		}
-		to, err := time.Parse("2006-01-02", toStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid to date"})
-			return
-		}
 		ctx := c.MustGet("ctx")
-		items, err := models.ListPlanSchedule(ctx.(context.Context), user.ID, from, to)
+		page, _ := c.Get("paginate")
+
+		items, total, err := models.ListPlanSchedulePaginated(ctx.(context.Context), user.ID, page.(database.Paginate))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, items)
+
+		c.JSON(http.StatusOK, gin.H{
+			"items": items,
+			"total": total,
+		})
 	})
 
 	g.PATCH("/:id", func(c *gin.Context) {
@@ -106,7 +94,7 @@ func planScheduleGroup(router *gin.Engine) {
 			return
 		}
 		if form.Status != nil {
-			target.Status = *form.Status
+			target.Status = models.PlanScheduleStatus(*form.Status)
 		}
 		target.Notes = form.Notes
 		if err := models.UpdatePlanSchedule(ctx.(context.Context), target); err != nil {

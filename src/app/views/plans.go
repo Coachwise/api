@@ -65,7 +65,15 @@ func plansGroup(router *gin.Engine) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, plans)
+
+		// Return pagination format for consistency with other list endpoints
+		if plans == nil {
+			plans = []models.Plan{}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"items": plans,
+			"total": len(plans),
+		})
 	})
 
 	g.GET("/:id", func(c *gin.Context) {
@@ -178,6 +186,7 @@ func plansGroup(router *gin.Engine) {
 			ExerciseID:    form.ExerciseID,
 			ExerciseOrder: form.ExerciseOrder,
 			RestTime:      form.RestTime,
+			Intensity:     form.Intensity,
 		}
 		if err := models.AddPlanExercise(ctx.(context.Context), pe); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

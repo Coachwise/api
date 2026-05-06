@@ -39,7 +39,7 @@ func paginate() gin.HandlerFunc {
 
 		c.Set("paginate", database.Paginate{
 			Limit:   limit,
-			Offet:   (page - 1) * limit,
+			Offset:  (page - 1) * limit,
 			Filters: filters,
 		})
 		c.Set("limit", limit)

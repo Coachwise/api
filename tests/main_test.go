@@ -56,6 +56,7 @@ var _ = Describe("coachwise Test Suite", func() {
 	Context("Exercise", exerciseGroup)
 	Context("Users", usersGroup)
 	Context("Plans", plansGroup)
+	Context("Schedules", schedulesGroup)
 	Context("Sessions", sessionsGroup)
 	Context("Feeds", feedGroup)
 	Context("Media", mediaGroup)

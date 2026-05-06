@@ -26,6 +26,7 @@ func plansGroup() {
 					"name":        fmt.Sprintf("Plan Exercise %d", i),
 					"description": fmt.Sprintf("Exercise %d for plans", i),
 					"public":      true,
+					"sport_type":  "STRENGTH",
 					"sets": []gin.H{
 						{"name": "Set 1", "rest_time": 30e9, "rep_count": 10},
 						{"name": "Set 2", "rest_time": 45e9, "rep_count": 12},
@@ -119,6 +120,7 @@ func plansGroup() {
 					"exercise_id":    exerciseIds[0],
 					"exercise_order": 1,
 					"rest_time":      120e9, // 2 minutes rest
+					"intensity":      7,
 				})
 				req, _ := http.NewRequest("POST", fmt.Sprintf("/plans/%s/exercises", planId), bytes.NewBuffer(reqBody))
 				req.Header.Set("Content-Type", "application/json")
@@ -140,6 +142,7 @@ func plansGroup() {
 						"exercise_id":    exerciseId,
 						"exercise_order": i + 1,
 						"rest_time":      int64((i+1)*60) * 1e9, // Varying rest times
+						"intensity":      5 + i,                 // Varying intensity (5, 6, 7)
 					})
 					req, _ := http.NewRequest("POST", fmt.Sprintf("/plans/%s/exercises", planId), bytes.NewBuffer(reqBody))
 					req.Header.Set("Content-Type", "application/json")

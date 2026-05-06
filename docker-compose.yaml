@@ -3,7 +3,7 @@ version: '3'
 services:
   postgres:
     container_name: 'coach-wise-pg'
-    image: 'postgres:14.4-alpine'
+    image: 'postgres:14.4-alpinecha'
     environment:
       POSTGRES_USER: 'coachwise'
       POSTGRES_PASSWORD: 'passwd'

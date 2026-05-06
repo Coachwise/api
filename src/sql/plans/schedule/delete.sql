@@ -1,1 +1,1 @@
-DELETE FROM plan_schedule WHERE id = $1 RETURNING id;
+DELETE FROM plan_schedules WHERE id = $1 RETURNING id;

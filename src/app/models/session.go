@@ -18,6 +18,8 @@ type Session struct {
 	StartedAt   time.Time  `db:"started_at" json:"started_at"`
 	EndedAt     *time.Time `db:"ended_at" json:"ended_at"`
 	Notes       *string    `db:"notes" json:"notes"`
+	Intensity   *int       `db:"intensity" json:"intensity"`
+	Quality     *int       `db:"quality" json:"quality"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at" json:"updated_at"`
 }
@@ -52,7 +54,7 @@ func (s *Session) Update(ctx context.Context) error {
 	rows, err := database.Query(
 		ctx,
 		"sessions/update",
-		s.ID, s.Status, s.EndedAt, s.Notes,
+		s.ID, s.Status, s.EndedAt, s.Notes, s.Intensity, s.Quality,
 	)
 	if err != nil {
 		return err
@@ -124,4 +126,33 @@ func GetUserSessions(ctx context.Context, userID uuid.UUID) ([]Session, error) {
 	}
 
 	return sessions, nil
+}
+
+func GetUserSessionsPaginated(ctx context.Context, userID uuid.UUID, paginate database.Paginate) ([]Session, int, error) {
+	var (
+		sessions  []Session
+		fetchList []database.FetchList
+		ids       []interface{}
+		total     int
+	)
+
+	if err := database.QuerySelect("sessions/list", &fetchList, userID, paginate.Limit, paginate.Offset); err != nil {
+		return nil, 0, err
+	}
+
+	if len(fetchList) < 1 {
+		return sessions, 0, nil
+	}
+
+	total = fetchList[0].TotalCount
+
+	for _, f := range fetchList {
+		ids = append(ids, f.ID)
+	}
+
+	if err := database.Fetch(&sessions, ids...); err != nil {
+		return nil, 0, err
+	}
+
+	return sessions, total, nil
 }

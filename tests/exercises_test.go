@@ -42,6 +42,7 @@ func exerciseGroup() {
 				"name":        "Public Exercise",
 				"description": "This is a public exercise",
 				"public":      true,
+				"sport_type":  "GENERAL",
 				"sets": []gin.H{
 					{"name": "Set 1", "rest_time": 30e9, "rep_count": 10},
 				},
@@ -84,6 +85,7 @@ func exerciseGroup() {
 				"name":        "Plank Exercise",
 				"description": "Core strengthening",
 				"public":      false,
+				"sport_type":  "MOBILITY",
 				"sets": []gin.H{
 					{"name": "Hold", "rest_time": 60e9, "duration": 30e9},
 					{"name": "Hold", "rest_time": 60e9, "duration": 45e9},
@@ -115,6 +117,54 @@ func exerciseGroup() {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
 			Expect(w.Code).To(Equal(400))
+		})
+
+		It("should create climbing exercise", func() {
+			w := httptest.NewRecorder()
+			reqBody, _ := json.Marshal(gin.H{
+				"name":        "Hangboard Max Hangs",
+				"description": "Fingerboard training",
+				"public":      true,
+				"sport_type":  "CLIMBING",
+				"sets": []gin.H{
+					{"name": "Warmup", "rest_time": 180e9, "duration": 7e9},
+					{"name": "Max Hang", "rest_time": 180e9, "duration": 10e9},
+					{"name": "Max Hang", "rest_time": 180e9, "duration": 10e9},
+				},
+			})
+			req, _ := http.NewRequest("POST", "/exercises", bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(w, req)
+
+			body := decodeBody(w.Body)
+			Expect(w.Code).To(Equal(201))
+			Expect(body["sport_type"]).To(Equal("CLIMBING"))
+			sets := body["sets"].([]interface{})
+			Expect(len(sets)).To(Equal(3))
+		})
+
+		It("should create cardio exercise", func() {
+			w := httptest.NewRecorder()
+			reqBody, _ := json.Marshal(gin.H{
+				"name":        "Running Intervals",
+				"description": "Cardio endurance training",
+				"public":      true,
+				"sport_type":  "CARDIO",
+				"sets": []gin.H{
+					{"name": "Sprint", "rest_time": 60e9, "duration": 30e9},
+					{"name": "Sprint", "rest_time": 60e9, "duration": 30e9},
+					{"name": "Sprint", "rest_time": 60e9, "duration": 30e9},
+				},
+			})
+			req, _ := http.NewRequest("POST", "/exercises", bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(w, req)
+
+			body := decodeBody(w.Body)
+			Expect(w.Code).To(Equal(201))
+			Expect(body["sport_type"]).To(Equal("CARDIO"))
 		})
 	})
 
@@ -194,6 +244,7 @@ func exerciseGroup() {
 				"name":        "updated",
 				"description": "updated",
 				"public":      false,
+				"sport_type":  "STRENGTH",
 				"sets": []gin.H{
 					{"name": "updated", "rest_time": 60e9, "rep_count": 10},
 				},
@@ -215,6 +266,7 @@ func exerciseGroup() {
 				"name":        "updated",
 				"description": "updated with more sets",
 				"public":      false,
+				"sport_type":  "STRENGTH",
 				"sets": []gin.H{
 					{"name": "Set 1", "rest_time": 30e9, "rep_count": 8},
 					{"name": "Set 2", "rest_time": 45e9, "rep_count": 10},
@@ -335,6 +387,7 @@ func exerciseGroup() {
 				"name":        "Bench Press",
 				"description": "Chest exercise",
 				"public":      false,
+				"sport_type":  "STRENGTH",
 				"sets": []gin.H{
 					{"name": "Warmup", "rest_time": 60e9, "rep_count": 10},
 					{"name": "Working", "rest_time": 90e9, "rep_count": 8},
@@ -357,6 +410,7 @@ func exerciseGroup() {
 				"name":        "Bench Press",
 				"description": "Chest exercise - improved",
 				"public":      false,
+				"sport_type":  "STRENGTH",
 				"sets": []gin.H{
 					{"name": "Warmup", "rest_time": 60e9, "rep_count": 12},
 					{"name": "Working", "rest_time": 90e9, "rep_count": 10},

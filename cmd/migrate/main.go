@@ -53,14 +53,20 @@ func main() {
 		if len(os.Args) < 3 {
 			log.Fatal("Expected a version number for the 'force' command.")
 		}
+		version := os.Args[2]
+		var versionInt int
+		_, err := fmt.Sscanf(version, "%d", &versionInt)
+		if err != nil {
+			log.Fatalf("Invalid version number: %s", version)
+		}
 		m, err := migrate.New(migrationPath, config.Config.Database.URL)
 		if err != nil {
 			log.Fatal(err)
 		}
-		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		if err := m.Force(versionInt); err != nil {
 			log.Fatal(err)
 		}
-		log.Println("Migrations forced applied successfully!")
+		log.Printf("Migration version forced to %d successfully!", versionInt)
 	default:
 		log.Fatalf("Unknown command: %s", command)
 	}

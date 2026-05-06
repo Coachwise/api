@@ -1,4 +1,4 @@
 UPDATE workout_logs
-SET exercise_id = $2, exercise_name = $3, set_number = $4, reps = $5, weight = $6, rpe = $7, duration_seconds = $8, grade = $9, completed = $10, attempts = $11, notes = $12
+SET reps = $2, weight = $3, rpe = $4, duration_seconds = $5, grade = $6, completed = $7, attempts = $8, notes = $9
 WHERE id = $1
 RETURNING *

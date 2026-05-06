@@ -9,6 +9,7 @@ import (
 	database "github.com/socious-io/pkg_database"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx/types"
 )
 
 var (
@@ -26,12 +27,14 @@ type Plan struct {
 }
 
 type PlanExercise struct {
-	ID            uuid.UUID     `db:"id" json:"id"`
-	ExerciseID    uuid.UUID     `db:"exercise_id" json:"exercise_id"`
-	PlanID        uuid.UUID     `db:"plan_id" json:"plan_id"`
-	ExerciseOrder int           `db:"exercise_order" json:"exercise_order"`
-	RestTime      time.Duration `db:"rest_time" json:"rest_time"`
-	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
+	ID            uuid.UUID        `db:"id" json:"id"`
+	ExerciseID    uuid.UUID        `db:"exercise_id" json:"exercise_id"`
+	PlanID        uuid.UUID        `db:"plan_id" json:"plan_id"`
+	ExerciseOrder int              `db:"exercise_order" json:"exercise_order"`
+	RestTime      time.Duration    `db:"rest_time" json:"rest_time"`
+	Intensity     int              `db:"intensity" json:"intensity"` // 1-10 scale
+	CreatedAt     time.Time        `db:"created_at" json:"created_at"`
+	Exercise      types.JSONText   `db:"exercise" json:"exercise"`
 }
 
 type PlanAssignee struct {
@@ -155,7 +158,7 @@ func AddPlanExercise(ctx context.Context, pe *PlanExercise) error {
 	rows, err := database.Query(
 		ctx,
 		"plans/exercises/create",
-		pe.ExerciseID, pe.PlanID, pe.ExerciseOrder, pe.RestTime,
+		pe.ExerciseID, pe.PlanID, pe.ExerciseOrder, pe.RestTime, pe.Intensity,
 	)
 	if err != nil {
 		return err

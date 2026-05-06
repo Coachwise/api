@@ -12,16 +12,20 @@ import (
 )
 
 type Exercise struct {
-	ID          uuid.UUID  `json:"id" db:"id"`
-	UserID      *uuid.UUID `json:"user_id" db:"user_id"`
-	Name        string     `json:"name" db:"name"`
-	Description string     `json:"description" db:"description"`
-	Public      bool       `json:"public" db:"public"`
-	Sets        []Set      `json:"sets" db:"-"`
-	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+	ID          uuid.UUID         `json:"id" db:"id"`
+	UserID      *uuid.UUID        `json:"user_id" db:"user_id"`
+	Name        string            `json:"name" db:"name"`
+	Description string            `json:"description" db:"description"`
+	Public      bool              `json:"public" db:"public"`
+	SportType   ExerciseSportType `json:"sport_type" db:"sport_type"`
+	MediaID     *uuid.UUID        `json:"media_id" db:"media_id"`
+	Media       *Media            `json:"media,omitempty" db:"-"`
+	Sets        []Set             `json:"sets" db:"-"`
+	CreatedAt   time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at" db:"updated_at"`
 
-	SetsJson types.JSONText `db:"sets" json:"-"`
+	SetsJson  types.JSONText `db:"sets" json:"-"`
+	MediaJson types.JSONText `db:"media" json:"-"`
 }
 
 type Set struct {
@@ -79,7 +83,7 @@ func (e *Exercise) Create(ctx context.Context) error {
 		ctx,
 		tx,
 		"exercises/create",
-		e.UserID, e.Name, e.Description, e.Public,
+		e.UserID, e.Name, e.Description, e.Public, e.SportType, e.MediaID,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -113,6 +117,7 @@ func (e *Exercise) Create(ctx context.Context) error {
 		return err
 	}
 	_ = e.SetsJson.Unmarshal(&e.Sets)
+	_ = e.MediaJson.Unmarshal(&e.Media)
 	return nil
 }
 
@@ -125,7 +130,7 @@ func (e *Exercise) Update(ctx context.Context) error {
 		ctx,
 		tx,
 		"exercises/update",
-		e.ID, e.Name, e.Description, e.Public,
+		e.ID, e.Name, e.Description, e.Public, e.SportType, e.MediaID,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -163,6 +168,7 @@ func (e *Exercise) Update(ctx context.Context) error {
 		return err
 	}
 	_ = e.SetsJson.Unmarshal(&e.Sets)
+	_ = e.MediaJson.Unmarshal(&e.Media)
 	return nil
 }
 
@@ -180,6 +186,7 @@ func GetExrcise(id uuid.UUID) (*Exercise, error) {
 		return nil, err
 	}
 	_ = e.SetsJson.Unmarshal(&e.Sets)
+	_ = e.MediaJson.Unmarshal(&e.Media)
 	return e, nil
 }
 

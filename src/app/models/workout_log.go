@@ -2,11 +2,16 @@ package models
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	database "github.com/socious-io/pkg_database"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrWorkoutLogNotFound = errors.New("workout log not found")
 )
 
 type WorkoutLog struct {
@@ -107,4 +112,16 @@ func GetSessionWorkoutLogs(ctx context.Context, sessionID uuid.UUID) ([]WorkoutL
 	}
 
 	return logs, nil
+}
+
+func DeleteWorkoutLog(ctx context.Context, id, userID uuid.UUID) error {
+	rows, err := database.Query(ctx, "workout_logs/delete", id, userID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return ErrWorkoutLogNotFound
+	}
+	return nil
 }

@@ -21,6 +21,7 @@ var (
 			"name":        "test",
 			"description": "test",
 			"public":      true,
+			"sport_type":  "STRENGTH",
 			"sets": []gin.H{
 				{"name": "test", "rest_time": 30e9, "rep_count": 6},
 				{"name": "test", "rest_time": 40e9, "duration": 3e9},

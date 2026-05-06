@@ -1,15 +1,18 @@
 package views
 
 import (
+	"coachwise/src/app/models"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type ExerciseForm struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Public      bool   `json:"public"`
+	Name        string                     `json:"name"`
+	Description string                     `json:"description"`
+	Public      bool                       `json:"public"`
+	SportType   *models.ExerciseSportType  `json:"sport_type"`
+	MediaID     *uuid.UUID                 `json:"media_id"`
 	Sets        []struct {
 		Name     string         `json:"name"`
 		RestTime time.Duration  `json:"rest_time"`
@@ -25,8 +28,10 @@ type CreateSessionForm struct {
 }
 
 type UpdateSessionForm struct {
-	Status *string `json:"status"`
-	Notes  *string `json:"notes"`
+	Status    *string `json:"status"`
+	Notes     *string `json:"notes"`
+	Intensity int     `json:"intensity" binding:"required,min=1,max=10"`
+	Quality   int     `json:"quality" binding:"required,min=1,max=5"`
 }
 
 type CreateWorkoutLogForm struct {
@@ -96,6 +101,7 @@ type PlanExerciseForm struct {
 	ExerciseID    uuid.UUID     `json:"exercise_id" binding:"required"`
 	ExerciseOrder int           `json:"exercise_order" binding:"required"`
 	RestTime      time.Duration `json:"rest_time" binding:"required"`
+	Intensity     int           `json:"intensity" binding:"required"`
 }
 
 type PlanAssignForm struct {

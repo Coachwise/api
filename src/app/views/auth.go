@@ -278,6 +278,9 @@ func authGroup(router *gin.Engine) {
 			return
 		}
 
+		// Mark password as expired so PUT /auth/password accepts a new password without current_password
+		_ = u.ExpirePassword(ctx.(context.Context))
+
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 
 	})
