@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx/types"
@@ -25,6 +26,12 @@ type User struct {
 
 	ProUntil *time.Time `db:"pro_until" json:"pro_until,omitempty"`
 	Pro      bool       `db:"pro" json:"pro"`
+
+	IsCoach bool `db:"is_coach" json:"is_coach"`
+
+	// Computed per-viewer in the connection endpoints (not from a column).
+	ConnectionStatus string `db:"-" json:"connection_status,omitempty"` // none|pending_outgoing|pending_incoming|connected
+	IsConnected      bool   `db:"-" json:"is_connected"`
 
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
@@ -158,25 +165,43 @@ func GetUserByUsername(username string) (*User, error) {
 	return u, nil
 }
 
-func ListUsers(ctx context.Context, username string) ([]User, error) {
-	var users []User
-	db := database.GetDB()
-	query := "SELECT * FROM users"
-	args := []interface{}{}
-	if username != "" {
-		query += " WHERE LOWER(username) LIKE LOWER($1)"
-		args = append(args, "%"+username+"%")
+// ListUsersPaginated searches users by username or full name. When coachOnly is
+// true it returns only users flagged as coaches; excludeID drops that user from
+// the results (used to hide the requester from their own search).
+func ListUsersPaginated(ctx context.Context, search string, coachOnly bool, excludeID uuid.UUID, p database.Paginate) ([]User, int, error) {
+	var (
+		items     = []User{}
+		fetchList []database.FetchList
+		ids       []interface{}
+		total     int
+	)
+
+	if err := database.QuerySelect("users/list", &fetchList, strings.TrimSpace(search), coachOnly, excludeID, p.Limit, p.Offset); err != nil {
+		return nil, 0, err
 	}
-	if err := db.SelectContext(ctx, &users, query, args...); err != nil {
-		return nil, err
+
+	if len(fetchList) < 1 {
+		return items, 0, nil
 	}
-	return users, nil
+
+	total = fetchList[0].TotalCount
+
+	for _, f := range fetchList {
+		ids = append(ids, f.ID)
+	}
+
+	if err := database.Fetch(&items, ids...); err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
 }
 
 func DeleteUser(ctx context.Context, id uuid.UUID) error {
-	db := database.GetDB()
-	if _, err := db.ExecContext(ctx, "DELETE FROM users WHERE id=$1", id); err != nil {
+	rows, err := database.Query(ctx, "users/delete", id)
+	if err != nil {
 		return err
 	}
+	rows.Close()
 	return nil
 }

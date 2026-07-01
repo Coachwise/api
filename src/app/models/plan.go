@@ -18,31 +18,43 @@ var (
 )
 
 type Plan struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	Public    bool      `db:"public" json:"public"`
-	Name      string    `db:"name" json:"name"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID            uuid.UUID `db:"id" json:"id"`
+	UserID        uuid.UUID `db:"user_id" json:"user_id"`
+	Public        bool      `db:"public" json:"public"`
+	Name          string    `db:"name" json:"name"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	ExerciseCount int       `db:"exercise_count" json:"exercise_count"`
+	// EstimatedSeconds is a rough completion estimate: per set, the work time
+	// (set duration, or rep_count × 6s for rep-based sets) plus its rest time.
+	EstimatedSeconds int `db:"estimated_seconds" json:"estimated_seconds"`
+	// User is the plan owner (the coach, for an assigned plan), populated from the
+	// user_id FK via row_to_json. UserJson is auto-unmarshalled into User by
+	// pkg_database (db tag "user" ↔ json tag "user").
+	// json tag must be exactly "user" (no ,omitempty) so pkg_database matches the
+	// UserJson db:"user" field to it and unmarshals the owner into User.
+	User     *User          `db:"-" json:"user"`
+	UserJson types.JSONText `db:"user" json:"-"`
 }
 
 type PlanExercise struct {
-	ID            uuid.UUID        `db:"id" json:"id"`
-	ExerciseID    uuid.UUID        `db:"exercise_id" json:"exercise_id"`
-	PlanID        uuid.UUID        `db:"plan_id" json:"plan_id"`
-	ExerciseOrder int              `db:"exercise_order" json:"exercise_order"`
-	RestTime      time.Duration    `db:"rest_time" json:"rest_time"`
-	Intensity     int              `db:"intensity" json:"intensity"` // 1-10 scale
-	CreatedAt     time.Time        `db:"created_at" json:"created_at"`
-	Exercise      types.JSONText   `db:"exercise" json:"exercise"`
+	ID            uuid.UUID      `db:"id" json:"id"`
+	ExerciseID    uuid.UUID      `db:"exercise_id" json:"exercise_id"`
+	PlanID        uuid.UUID      `db:"plan_id" json:"plan_id"`
+	ExerciseOrder int            `db:"exercise_order" json:"exercise_order"`
+	RestTime      time.Duration  `db:"rest_time" json:"rest_time"`
+	Intensity     int            `db:"intensity" json:"intensity"` // 1-10 scale
+	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
+	Exercise      types.JSONText `db:"exercise" json:"exercise"`
 }
 
 type PlanAssignee struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	PlanID    uuid.UUID `db:"plan_id" json:"plan_id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	Assigner  uuid.UUID `db:"assigner" json:"assigner"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID        uuid.UUID  `db:"id" json:"id"`
+	PlanID    uuid.UUID  `db:"plan_id" json:"plan_id"`
+	UserID    uuid.UUID  `db:"user_id" json:"user_id"`
+	Assigner  uuid.UUID  `db:"assigner" json:"assigner"`
+	PackageID *uuid.UUID `db:"package_id" json:"package_id,omitempty"` // set when assigned via a package; NULL = manual
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
 }
 
 func (Plan) TableName() string {
@@ -90,45 +102,46 @@ func (p *Plan) Update(ctx context.Context) error {
 }
 
 func DeletePlan(ctx context.Context, id uuid.UUID) error {
-	db := database.GetDB()
-	res, err := db.ExecContext(ctx, "DELETE FROM plans WHERE id=$1", id)
+	rows, err := database.Query(ctx, "plans/delete", id)
 	if err != nil {
 		return err
 	}
-	if count, _ := res.RowsAffected(); count == 0 {
+	defer rows.Close()
+	if !rows.Next() {
 		return ErrPlanNotFound
 	}
 	return nil
 }
 
 func CountPersonalPlans(ctx context.Context, userID uuid.UUID) (int, error) {
-	db := database.GetDB()
-	var count int
-	if err := db.GetContext(ctx, &count, "SELECT COUNT(*) FROM plans WHERE user_id=$1 AND public=false", userID); err != nil {
+	var counts []struct {
+		Count int `db:"count"`
+	}
+	if err := database.QuerySelect("plans/count_personal", &counts, userID); err != nil {
 		return 0, err
 	}
-	return count, nil
+	if len(counts) == 0 {
+		return 0, nil
+	}
+	return counts[0].Count, nil
 }
 
 func ListPlans(ctx context.Context, userID uuid.UUID, onlyPublic bool) ([]Plan, error) {
-	var plans []Plan
-	db := database.GetDB()
-	query := `
-		SELECT DISTINCT p.*
-		FROM plans p
-		LEFT JOIN plan_assignees pa ON pa.plan_id = p.id
-		WHERE p.user_id = $1
-		   OR pa.user_id = $1
-		   OR p.public = true`
-	args := []interface{}{userID}
-	if onlyPublic {
-		query = `
-			SELECT DISTINCT p.*
-			FROM plans p
-			WHERE p.public = true`
-		args = []interface{}{}
+	plans := []Plan{}
+	var ids []uuid.UUID
+	if err := database.QuerySelect("plans/list", &ids, userID, onlyPublic); err != nil {
+		return nil, err
 	}
-	if err := db.SelectContext(ctx, &plans, query, args...); err != nil {
+	if len(ids) == 0 {
+		return plans, nil
+	}
+	// Fetch hydrates the rows via plans/fetch (incl. the owner user) and
+	// auto-unmarshals the json fields.
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	if err := database.Fetch(&plans, args...); err != nil {
 		return nil, err
 	}
 	return plans, nil
@@ -136,16 +149,7 @@ func ListPlans(ctx context.Context, userID uuid.UUID, onlyPublic bool) ([]Plan, 
 
 func GetPlanForUser(ctx context.Context, planID, userID uuid.UUID) (*Plan, error) {
 	p := new(Plan)
-	db := database.GetDB()
-	err := db.GetContext(ctx, p, `
-		SELECT p.*
-		FROM plans p
-		WHERE p.id = $1 AND (
-			p.user_id = $2
-			OR p.public = true
-			OR EXISTS (SELECT 1 FROM plan_assignees pa WHERE pa.plan_id = p.id AND pa.user_id = $2)
-		)`, planID, userID)
-	if err != nil {
+	if err := database.Get(p, "plans/get_for_user", planID, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrPlanAccessDenied
 		}
@@ -181,16 +185,19 @@ func ListPlanExercises(ctx context.Context, planID uuid.UUID) ([]PlanExercise, e
 }
 
 func RemovePlanExercise(ctx context.Context, planID, exerciseID uuid.UUID) error {
-	db := database.GetDB()
-	_, err := db.ExecContext(ctx, "DELETE FROM plan_exercises WHERE plan_id=$1 AND exercise_id=$2", planID, exerciseID)
-	return err
+	rows, err := database.Query(ctx, "plans/exercises/delete", planID, exerciseID)
+	if err != nil {
+		return err
+	}
+	rows.Close()
+	return nil
 }
 
 func AssignPlan(ctx context.Context, assignee *PlanAssignee) error {
 	rows, err := database.Query(
 		ctx,
 		"plans/assignees/create",
-		assignee.PlanID, assignee.UserID, assignee.Assigner,
+		assignee.PlanID, assignee.UserID, assignee.Assigner, assignee.PackageID,
 	)
 	if err != nil {
 		return err
@@ -213,9 +220,12 @@ func ListPlanAssignees(ctx context.Context, planID uuid.UUID) ([]PlanAssignee, e
 }
 
 func UnassignPlan(ctx context.Context, planID, userID uuid.UUID) error {
-	db := database.GetDB()
-	_, err := db.ExecContext(ctx, "DELETE FROM plan_assignees WHERE plan_id=$1 AND user_id=$2", planID, userID)
-	return err
+	rows, err := database.Query(ctx, "plans/assignees/delete", planID, userID)
+	if err != nil {
+		return err
+	}
+	rows.Close()
+	return nil
 }
 
 func ListUserAssignedPlans(ctx context.Context, userID uuid.UUID) ([]Plan, error) {

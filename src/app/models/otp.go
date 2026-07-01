@@ -102,8 +102,7 @@ func GetOTPByUserID(user_id uuid.UUID) (*OTP, error) {
 
 func GetOTPByEmail(email string) (*OTP, error) {
 	o := new(OTP)
-	db := database.GetDB()
-	if err := db.Get(o, "SELECT * FROM otps WHERE email=$1 ORDER BY created_at DESC LIMIT 1", email); err != nil {
+	if err := database.Get(o, "otp/get_by_email", email); err != nil {
 		return nil, err
 	}
 	return o, nil

@@ -20,8 +20,25 @@ type Message struct {
 	Media     *Media     `db:"-" json:"media,omitempty"`
 }
 
+// ThreadEntry is one conversation in the user's message list: the peer, the
+// last message, and how many of the peer's messages are still unread.
 type ThreadEntry struct {
-	Message
+	ChatID       uuid.UUID `json:"chat_id"`
+	Peer         *User     `json:"peer"`
+	LastMessage  string    `json:"last_message"`
+	LastAt       time.Time `json:"last_at"`
+	LastSenderID uuid.UUID `json:"last_sender_id"`
+	UnreadCount  int       `json:"unread_count"`
+}
+
+type threadRow struct {
+	ChatID       uuid.UUID `db:"chat_id"`
+	PeerID       uuid.UUID `db:"peer_id"`
+	LastBody     string    `db:"last_body"`
+	LastAt       time.Time `db:"last_at"`
+	LastSenderID uuid.UUID `db:"last_sender_id"`
+	UnreadCount  int       `db:"unread_count"`
+	TotalCount   int       `db:"total_count"`
 }
 
 func (Message) TableName() string {
@@ -75,7 +92,41 @@ func MarkChatRead(ctx context.Context, chatID uuid.UUID, userID uuid.UUID) error
 	return err
 }
 
-// ListThreads is a placeholder that returns an empty slice until thread aggregation is implemented.
-func ListThreads(ctx context.Context, limit, offset int) ([]ThreadEntry, error) {
-	return []ThreadEntry{}, nil
+// ListThreads returns the user's direct conversations (peer + last message +
+// unread count), most recent first, plus the total count.
+func ListThreads(ctx context.Context, userID uuid.UUID, p database.Paginate) ([]ThreadEntry, int, error) {
+	var rows []threadRow
+	if err := database.QuerySelect("messages/threads", &rows, userID, p.Limit, p.Offset); err != nil {
+		return nil, 0, err
+	}
+	if len(rows) == 0 {
+		return []ThreadEntry{}, 0, nil
+	}
+	total := rows[0].TotalCount
+
+	ids := make([]interface{}, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.PeerID)
+	}
+	var peers []User
+	if err := database.Fetch(&peers, ids...); err != nil {
+		return nil, 0, err
+	}
+	byID := make(map[uuid.UUID]*User, len(peers))
+	for i := range peers {
+		byID[peers[i].ID] = &peers[i]
+	}
+
+	threads := make([]ThreadEntry, 0, len(rows))
+	for _, r := range rows {
+		threads = append(threads, ThreadEntry{
+			ChatID:       r.ChatID,
+			Peer:         byID[r.PeerID],
+			LastMessage:  r.LastBody,
+			LastAt:       r.LastAt,
+			LastSenderID: r.LastSenderID,
+			UnreadCount:  r.UnreadCount,
+		})
+	}
+	return threads, total, nil
 }

@@ -803,29 +803,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Message'
+        "403":
+          description: Not connected to the recipient (direct messaging is gated to connections)
   /messages/threads:
     get:
-      summary: List threads (latest message per peer)
+      summary: List the user's conversations (paginated)
       security:
         - bearerAuth: []
       parameters:
         - in: query
-          name: limit
+          name: page
           schema:
             type: integer
         - in: query
-          name: offset
+          name: limit
           schema:
             type: integer
       responses:
         "200":
-          description: Threads
+          description: Conversations
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MessageThread'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MessageThread'
+                  total:
+                    type: integer
   /messages/{peer_id}:
     get:
       summary: List messages with a peer
@@ -855,6 +862,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Message'
+        "403":
+          description: Not connected to this user (direct messaging is gated to connections)
   /messages/{peer_id}/read:
     post:
       summary: Mark thread as read
@@ -870,6 +879,70 @@ paths:
       responses:
         "200":
           description: Success
+  /coaches/apply:
+    post:
+      summary: Submit a coach application
+      description: Creates a PENDING application and pushes approve/reject capability links to Discord.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoachApplicationForm'
+      responses:
+        "200":
+          description: The created application (decision_token is never exposed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachApplication'
+  /coaches/application:
+    get:
+      summary: Current user's latest coach application (null if none)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Latest application or null
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoachApplication'
+  /coaches/applications/{id}/approve:
+    get:
+      summary: Approve an application (capability link; no auth, token is the secret)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Approved (HTML confirmation) }
+        "400": { description: Invalid/missing token, or already decided }
+  /coaches/applications/{id}/reject:
+    get:
+      summary: Reject an application (capability link; no auth, token is the secret)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: token
+          required: true
+          schema: { type: string }
+        - in: query
+          name: note
+          schema: { type: string }
+      responses:
+        "200": { description: Rejected (HTML confirmation) }
+        "400": { description: Invalid/missing token, or already decided }
 components:
   securitySchemes:
     bearerAuth:
@@ -877,6 +950,33 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    CoachApplicationForm:
+      type: object
+      required: [full_name, specialty, certifications]
+      properties:
+        full_name: { type: string }
+        specialty: { type: string }
+        experience_years: { type: integer }
+        certifications: { type: string }
+        bio: { type: string }
+        website: { type: string }
+        instagram: { type: string }
+    CoachApplication:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        full_name: { type: string }
+        specialty: { type: string }
+        experience_years: { type: integer }
+        certifications: { type: string }
+        bio: { type: string, nullable: true }
+        website: { type: string, nullable: true }
+        instagram: { type: string, nullable: true }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        review_note: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     AuthTokens:
       type: object
       properties:
@@ -1414,10 +1514,21 @@ components:
           format: uuid
           nullable: true
     MessageThread:
-      allOf:
-        - $ref: '#/components/schemas/Message'
-        - type: object
-          properties:
-            peer_id:
-              type: string
-              format: uuid
+      type: object
+      description: One conversation in the user's message list.
+      properties:
+        chat_id:
+          type: string
+          format: uuid
+        peer:
+          $ref: '#/components/schemas/User'
+        last_message:
+          type: string
+        last_at:
+          type: string
+          format: date-time
+        last_sender_id:
+          type: string
+          format: uuid
+        unread_count:
+          type: integer

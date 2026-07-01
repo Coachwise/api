@@ -8,11 +8,11 @@ import (
 )
 
 type ExerciseForm struct {
-	Name        string                     `json:"name"`
-	Description string                     `json:"description"`
-	Public      bool                       `json:"public"`
-	SportType   *models.ExerciseSportType  `json:"sport_type"`
-	MediaID     *uuid.UUID                 `json:"media_id"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description"`
+	Public      bool                      `json:"public"`
+	SportType   *models.ExerciseSportType `json:"sport_type"`
+	MediaID     *uuid.UUID                `json:"media_id"`
 	Sets        []struct {
 		Name     string         `json:"name"`
 		RestTime time.Duration  `json:"rest_time"`
@@ -108,6 +108,63 @@ type PlanAssignForm struct {
 	UserID uuid.UUID `json:"user_id" binding:"required"`
 }
 
+// PackageForm is shared by package create and update (the payloads match).
+type PackageForm struct {
+	Name             string      `json:"name" binding:"required"`
+	Description      *string     `json:"description"`
+	PriceMonthly     *int        `json:"price_monthly"`
+	PriceAnnual      *int        `json:"price_annual"`
+	PriceOneTime     *int        `json:"price_one_time"`
+	TrialDays        int         `json:"trial_days"`
+	CheckInFrequency *string     `json:"check_in_frequency"`
+	VideoAccess      bool        `json:"video_access"`
+	NutritionGuides  bool        `json:"nutrition_guides"`
+	CustomFeatures   []string    `json:"custom_features"`
+	IsActive         *bool       `json:"is_active"`
+	Popular          bool        `json:"popular"`
+	PlanIDs          []uuid.UUID `json:"plan_ids"`
+}
+
+type SetPackagePlansForm struct {
+	PlanIDs []uuid.UUID `json:"plan_ids"`
+}
+
+// TestForm is shared by assessment-test create and update.
+type TestForm struct {
+	Name        string                 `json:"name" binding:"required"`
+	Description *string                `json:"description"`
+	Public      bool                   `json:"public"`
+	Items       []models.TestItemInput `json:"items"`
+}
+
+type TestRequestForm struct {
+	AthleteID uuid.UUID `json:"athlete_id" binding:"required"`
+	Note      *string   `json:"note"`
+}
+
+type TestSubmitForm struct {
+	Records []models.SubmittedRecord `json:"records"`
+}
+
+// SelfAssessmentForm is an athlete recording their own assessment.
+type SelfAssessmentForm struct {
+	Name    string                `json:"name" binding:"required"`
+	Records []models.SelfRecord   `json:"records" binding:"required,min=1"`
+}
+
+type AchievementForm struct {
+	AthleteID   uuid.UUID `json:"athlete_id" binding:"required"`
+	Title       string    `json:"title" binding:"required"`
+	Description *string   `json:"description"`
+}
+
+// AchievementLayoutForm curates a user's profile trophy case: an ordered list of
+// item keys ("badge:<id>" / "record:<exercise_id>") plus the hidden ones.
+type AchievementLayoutForm struct {
+	Order  []string `json:"order"`
+	Hidden []string `json:"hidden"`
+}
+
 type PlanScheduleCreateForm struct {
 	PlanID       uuid.UUID `json:"plan_id" binding:"required"`
 	ScheduledFor string    `json:"scheduled_for" binding:"required"` // YYYY-MM-DD
@@ -127,4 +184,14 @@ type ProfileForm struct {
 	Bio       string     `json:"bio"`
 	Phone     string     `json:"phone"`
 	AvatarID  *uuid.UUID `json:"avatar_id"`
+}
+
+type CoachApplicationForm struct {
+	FullName        string  `json:"full_name" binding:"required"`
+	Specialty       string  `json:"specialty" binding:"required"`
+	ExperienceYears int     `json:"experience_years"`
+	Certifications  string  `json:"certifications" binding:"required"`
+	Bio             *string `json:"bio"`
+	Website         *string `json:"website"`
+	Instagram       *string `json:"instagram"`
 }

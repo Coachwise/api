@@ -263,8 +263,12 @@ func workoutLogGroup(router *gin.Engine) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "log not found"})
 			return
 		}
+		if log.SessionID == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
 
-		session, err := models.GetSession(log.SessionID)
+		session, err := models.GetSession(*log.SessionID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
 			return

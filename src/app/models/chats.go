@@ -86,8 +86,31 @@ func UpsertChatMember(ctx context.Context, chatID, userID uuid.UUID, role string
 }
 
 func CanSend(ctx context.Context, chatID, userID uuid.UUID) (bool, error) {
-	// Permission enforcement not implemented; allow send for now
-	return true, nil
+	chat := new(Chat)
+	if err := database.Get(chat, "chats/fetch_by_id", chatID); err != nil {
+		return false, err
+	}
+	if chat.Type == "DIRECT" {
+		// Direct messages are only allowed between connected users.
+		var peers []struct {
+			UserID uuid.UUID `db:"user_id"`
+		}
+		if err := database.QuerySelect("chat_members/peer", &peers, chatID, userID); err != nil {
+			return false, err
+		}
+		for _, p := range peers {
+			connected, err := IsConnected(ctx, userID, p.UserID)
+			if err != nil {
+				return false, err
+			}
+			if !connected {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	// CHANNEL: membership required (channels are hidden in the first release).
+	return IsMember(ctx, chatID, userID)
 }
 
 func IsMember(ctx context.Context, chatID, userID uuid.UUID) (bool, error) {

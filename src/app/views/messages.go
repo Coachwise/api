@@ -9,7 +9,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	database "github.com/socious-io/pkg_database"
 )
+
+// requireConnection guards direct-message operations: only connected users may
+// message each other. Writes a 403 and returns false when not connected.
+func requireConnection(c *gin.Context, ctx context.Context, me, peer uuid.UUID) bool {
+	connected, err := models.IsConnected(ctx, me, peer)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return false
+	}
+	if !connected {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you can only message your connections"})
+		return false
+	}
+	return true
+}
 
 func messageGroup(router *gin.Engine) {
 	g := router.Group("messages")
@@ -36,6 +52,9 @@ func messageGroup(router *gin.Engine) {
 			recipientID, err := uuid.Parse(strings.TrimSpace(*form.RecipientID))
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid recipient_id"})
+				return
+			}
+			if !requireConnection(c, ctx.(context.Context), user.ID, recipientID) {
 				return
 			}
 			chat, err := models.GetOrCreateDirectChat(ctx.(context.Context), user.ID, recipientID)
@@ -85,26 +104,29 @@ func messageGroup(router *gin.Engine) {
 	})
 
 	// List messages with a peer (direct chat inferred)
-	g.GET("/:peer_id", func(c *gin.Context) {
+	g.GET("/:peer_id", paginate(), func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
 
 		ctx := c.MustGet("ctx")
 
 		peerParam := strings.TrimSpace(c.Param("peer_id"))
 		if peerParam == "threads" {
-			limit, offset := parsePagination(c, 50, 200)
-			threads, err := models.ListThreads(ctx.(context.Context), limit, offset)
+			page, _ := c.Get("paginate")
+			threads, total, err := models.ListThreads(ctx.(context.Context), user.ID, page.(database.Paginate))
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			c.JSON(http.StatusOK, threads)
+			c.JSON(http.StatusOK, gin.H{"items": threads, "total": total})
 			return
 		}
 
 		peerID, err := uuid.Parse(peerParam)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid peer_id"})
+			return
+		}
+		if !requireConnection(c, ctx.(context.Context), user.ID, peerID) {
 			return
 		}
 
@@ -138,6 +160,9 @@ func messageGroup(router *gin.Engine) {
 		peerID, err := uuid.Parse(peerParam)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid peer_id"})
+			return
+		}
+		if !requireConnection(c, ctx.(context.Context), user.ID, peerID) {
 			return
 		}
 

@@ -16,7 +16,8 @@ var (
 
 type WorkoutLog struct {
 	ID              uuid.UUID  `db:"id" json:"id"`
-	SessionID       uuid.UUID  `db:"session_id" json:"session_id"`
+	SessionID       *uuid.UUID `db:"session_id" json:"session_id"`
+	TestRequestID   *uuid.UUID `db:"test_request_id" json:"test_request_id,omitempty"`
 	ExerciseID      *uuid.UUID `db:"exercise_id" json:"exercise_id"`
 	ExerciseName    *string    `db:"exercise_name" json:"exercise_name"`
 	SetNumber       int        `db:"set_number" json:"set_number"`

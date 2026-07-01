@@ -102,6 +102,21 @@ var messagesGroup = func() {
 		var mediaResult gin.H
 		json.NewDecoder(mediaResp.Body).Decode(&mediaResult)
 		mediaID = mediaResult["id"].(string)
+
+		// Connect A and B — direct messaging is gated to established connections.
+		connReq := httptest.NewRequest(http.MethodPost, "/users/"+userBID+"/connect", nil)
+		connReq.Header.Set("Authorization", "Bearer "+tokenA)
+		connResp := httptest.NewRecorder()
+		router.ServeHTTP(connResp, connReq)
+		Expect(connResp.Code).To(Equal(http.StatusOK), connResp.Body.String())
+
+		reqID := incomingRequestID(tokenB, userAID)
+		Expect(reqID).NotTo(BeEmpty())
+		acceptReq := httptest.NewRequest(http.MethodPost, "/connections/requests/"+reqID+"/accept", nil)
+		acceptReq.Header.Set("Authorization", "Bearer "+tokenB)
+		acceptResp := httptest.NewRecorder()
+		router.ServeHTTP(acceptResp, acceptReq)
+		Expect(acceptResp.Code).To(Equal(http.StatusOK), acceptResp.Body.String())
 	})
 
 	It("sends, lists, and marks messages as read", func() {
@@ -133,12 +148,17 @@ var messagesGroup = func() {
 		json.NewDecoder(listResp.Body).Decode(&msgs)
 		Expect(len(msgs)).To(BeNumerically(">=", 1))
 
-		// Threads list
+		// Threads list (paginated {items, total})
 		threadsReq := httptest.NewRequest(http.MethodGet, "/messages/threads", nil)
 		threadsReq.Header.Set("Authorization", "Bearer "+tokenA)
 		threadsResp := httptest.NewRecorder()
 		router.ServeHTTP(threadsResp, threadsReq)
 		Expect(threadsResp.Code).To(Equal(http.StatusOK), threadsResp.Body.String())
+		var threadsBody gin.H
+		json.NewDecoder(threadsResp.Body).Decode(&threadsBody)
+		Expect(threadsBody["total"]).To(BeNumerically(">=", 1))
+		items, _ := threadsBody["items"].([]interface{})
+		Expect(len(items)).To(BeNumerically(">=", 1))
 
 		// Mark read as recipient (user B)
 		markReq := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/messages/%s/read", userAID), nil)
@@ -151,5 +171,26 @@ var messagesGroup = func() {
 		err := db.Get(&readAt, "SELECT read_at::text FROM messages WHERE id=$1", messageID)
 		Expect(err).To(BeNil())
 		Expect(readAt).NotTo(BeNil())
+	})
+
+	It("forbids messaging a user you are not connected to", func() {
+		// A fresh user C who has no connection with A.
+		_, userCID := registerVerifiedUser("msgc@test.com", "msgc")
+
+		sendPayload := gin.H{"recipient_id": userCID, "body": "hello stranger"}
+		body, _ := json.Marshal(sendPayload)
+		req := httptest.NewRequest(http.MethodPost, "/messages", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+tokenA)
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+		Expect(resp.Code).To(Equal(http.StatusForbidden), resp.Body.String())
+
+		// Listing a thread with a non-connection is likewise forbidden.
+		listReq := httptest.NewRequest(http.MethodGet, "/messages/"+userCID, nil)
+		listReq.Header.Set("Authorization", "Bearer "+tokenA)
+		listResp := httptest.NewRecorder()
+		router.ServeHTTP(listResp, listReq)
+		Expect(listResp.Code).To(Equal(http.StatusForbidden), listResp.Body.String())
 	})
 }

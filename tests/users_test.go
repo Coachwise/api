@@ -120,9 +120,9 @@ func usersGroup() {
 			router.ServeHTTP(w, req)
 
 			if w.Code == 200 {
-				var body []interface{}
-				json.NewDecoder(w.Body).Decode(&body)
-				Expect(len(body)).To(BeNumerically(">=", 4))
+				body := decodeBody(w.Body)
+				items, _ := body["items"].([]interface{})
+				Expect(len(items)).To(BeNumerically(">=", 4))
 			}
 		})
 
@@ -150,14 +150,14 @@ func usersGroup() {
 
 		It("should search users by username", func() {
 			w := httptest.NewRecorder()
-			req, _ := http.NewRequest("GET", "/users?username=test", nil)
+			req, _ := http.NewRequest("GET", "/users?search=test", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
 
 			if w.Code == 200 {
-				var body []interface{}
-				json.NewDecoder(w.Body).Decode(&body)
-				Expect(len(body)).To(BeNumerically(">=", 1))
+				body := decodeBody(w.Body)
+				items, _ := body["items"].([]interface{})
+				Expect(len(items)).To(BeNumerically(">=", 1))
 			}
 		})
 	})
