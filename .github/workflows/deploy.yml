@@ -62,7 +62,7 @@ jobs:
             IMAGE=ghcr.io/${{ env.REPO_LC }}:latest
             docker pull "$IMAGE"
 
-            mkdir -p /var/lib/coachwise/uploads
+            mkdir -p /etc/coachwise/uploads
             chown -R 10001:10001 /var/lib/coachwise/uploads 2>/dev/null || true
 
             # Run migrations
