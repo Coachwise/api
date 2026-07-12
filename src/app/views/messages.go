@@ -3,6 +3,7 @@ package views
 import (
 	"coachwise/src/app/auth"
 	"coachwise/src/app/models"
+	"coachwise/src/events"
 	"context"
 	"net/http"
 	"strings"
@@ -17,11 +18,11 @@ import (
 func requireConnection(c *gin.Context, ctx context.Context, me, peer uuid.UUID) bool {
 	connected, err := models.IsConnected(ctx, me, peer)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		AbortServer(c, err)
 		return false
 	}
 	if !connected {
-		c.JSON(http.StatusForbidden, gin.H{"error": "you can only message your connections"})
+		Abort(c, CodeNotConnected)
 		return false
 	}
 	return true
@@ -37,13 +38,14 @@ func messageGroup(router *gin.Engine) {
 
 		var form MessageForm
 		if err := c.ShouldBindJSON(&form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		var chatID uuid.UUID
+		var directPeer *uuid.UUID // set for direct messages, to poke the recipient live
 		if form.RecipientID == nil && form.ChatID == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "recipient_id or chat_id required"})
+			AbortStatus(c, http.StatusBadRequest, "recipient_id or chat_id required")
 			return
 		}
 
@@ -51,7 +53,7 @@ func messageGroup(router *gin.Engine) {
 		if form.RecipientID != nil {
 			recipientID, err := uuid.Parse(strings.TrimSpace(*form.RecipientID))
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid recipient_id"})
+				AbortStatus(c, http.StatusBadRequest, "invalid recipient_id")
 				return
 			}
 			if !requireConnection(c, ctx.(context.Context), user.ID, recipientID) {
@@ -59,14 +61,15 @@ func messageGroup(router *gin.Engine) {
 			}
 			chat, err := models.GetOrCreateDirectChat(ctx.(context.Context), user.ID, recipientID)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				AbortServer(c, err)
 				return
 			}
 			chatID = chat.ID
+			directPeer = &recipientID
 		} else {
 			id, err := uuid.Parse(strings.TrimSpace(*form.ChatID))
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid chat_id"})
+				AbortStatus(c, http.StatusBadRequest, "invalid chat_id")
 				return
 			}
 			chatID = id
@@ -74,7 +77,7 @@ func messageGroup(router *gin.Engine) {
 
 		if form.MediaID != nil {
 			if _, err := uuid.Parse(*form.MediaID); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid media_id"})
+				AbortStatus(c, http.StatusBadRequest, "invalid media_id")
 				return
 			}
 		}
@@ -87,18 +90,21 @@ func messageGroup(router *gin.Engine) {
 
 		canSend, err := models.CanSend(ctx.(context.Context), chatID, user.ID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		if !canSend {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			AbortStatus(c, http.StatusForbidden, "forbidden")
 			return
 		}
 
 		msg, err := models.CreateMessage(ctx.(context.Context), chatID, user.ID, form.Body, mediaUUID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
+		}
+		if directPeer != nil {
+			events.EmitSignal(*directPeer, "messages") // recipient's thread refreshes live
 		}
 		c.JSON(http.StatusOK, msg)
 	})
@@ -114,7 +120,7 @@ func messageGroup(router *gin.Engine) {
 			page, _ := c.Get("paginate")
 			threads, total, err := models.ListThreads(ctx.(context.Context), user.ID, page.(database.Paginate))
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				AbortServer(c, err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"items": threads, "total": total})
@@ -123,7 +129,7 @@ func messageGroup(router *gin.Engine) {
 
 		peerID, err := uuid.Parse(peerParam)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid peer_id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid peer_id")
 			return
 		}
 		if !requireConnection(c, ctx.(context.Context), user.ID, peerID) {
@@ -132,14 +138,14 @@ func messageGroup(router *gin.Engine) {
 
 		chat, err := models.GetOrCreateDirectChat(ctx.(context.Context), user.ID, peerID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
 		limit, offset := parsePagination(c, 50, 200)
 		msgs, err := models.ListMessages(ctx.(context.Context), chat.ID, limit, offset)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, msgs)
@@ -159,7 +165,7 @@ func messageGroup(router *gin.Engine) {
 
 		peerID, err := uuid.Parse(peerParam)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid peer_id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid peer_id")
 			return
 		}
 		if !requireConnection(c, ctx.(context.Context), user.ID, peerID) {
@@ -168,12 +174,12 @@ func messageGroup(router *gin.Engine) {
 
 		chat, err := models.GetOrCreateDirectChat(ctx.(context.Context), user.ID, peerID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
 		if err := models.MarkChatRead(ctx.(context.Context), chat.ID, user.ID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "success"})

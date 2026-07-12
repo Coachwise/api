@@ -20,12 +20,12 @@ func feedsGroup(router *gin.Engine) {
 	g.POST("", func(c *gin.Context) {
 		form := new(FeedCreateForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		if (form.Body == nil || strings.TrimSpace(*form.Body) == "") && len(form.Media) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "either body or media is required"})
+			AbortStatus(c, http.StatusBadRequest, "either body or media is required")
 			return
 		}
 
@@ -70,7 +70,7 @@ func feedsGroup(router *gin.Engine) {
 		}
 
 		if err := feed.Create(ctx.(context.Context), media, form.Tags); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -87,7 +87,7 @@ func feedsGroup(router *gin.Engine) {
 
 		feeds, total, err := models.ListFeeds(ctx.(context.Context), user.ID, limit, offset)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -100,7 +100,7 @@ func feedsGroup(router *gin.Engine) {
 	g.GET("/:id", func(c *gin.Context) {
 		feedID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid feed id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
@@ -109,7 +109,7 @@ func feedsGroup(router *gin.Engine) {
 
 		feed, err := models.GetFeedWithDetails(ctx.(context.Context), feedID, user.ID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "feed not found"})
+			AbortStatus(c, http.StatusNotFound, "feed not found")
 			return
 		}
 
@@ -119,7 +119,7 @@ func feedsGroup(router *gin.Engine) {
 	g.DELETE("/:id", func(c *gin.Context) {
 		feedID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid feed id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
@@ -127,7 +127,7 @@ func feedsGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 
 		if err := models.DeleteFeed(ctx.(context.Context), feedID, user.ID); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			Abort(c, CodeNotFound)
 			return
 		}
 
@@ -137,7 +137,7 @@ func feedsGroup(router *gin.Engine) {
 	g.POST("/:id/like", func(c *gin.Context) {
 		feedID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid feed id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
@@ -145,12 +145,12 @@ func feedsGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 
 		if _, err := models.GetFeed(feedID); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "feed not found"})
+			AbortStatus(c, http.StatusNotFound, "feed not found")
 			return
 		}
 
 		if err := models.AddFeedLike(ctx.(context.Context), feedID, user.ID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "liked"})
@@ -159,7 +159,7 @@ func feedsGroup(router *gin.Engine) {
 	g.DELETE("/:id/like", func(c *gin.Context) {
 		feedID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid feed id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
@@ -167,12 +167,12 @@ func feedsGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 
 		if _, err := models.GetFeed(feedID); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "feed not found"})
+			AbortStatus(c, http.StatusNotFound, "feed not found")
 			return
 		}
 
 		if err := models.RemoveFeedLike(ctx.(context.Context), feedID, user.ID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "unliked"})
@@ -181,7 +181,7 @@ func feedsGroup(router *gin.Engine) {
 	g.GET("/:id/comments", func(c *gin.Context) {
 		feedID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid feed id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
@@ -189,13 +189,13 @@ func feedsGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 
 		if _, err := models.GetFeedWithDetails(ctx.(context.Context), feedID, user.ID); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "feed not found"})
+			AbortStatus(c, http.StatusNotFound, "feed not found")
 			return
 		}
 
 		comments, err := models.ListFeedComments(ctx.(context.Context), feedID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -205,7 +205,7 @@ func feedsGroup(router *gin.Engine) {
 	g.POST("/:id/comments", func(c *gin.Context) {
 		feedID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid feed id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid feed id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
@@ -213,18 +213,18 @@ func feedsGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 
 		if _, err := models.GetFeedWithDetails(ctx.(context.Context), feedID, user.ID); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "feed not found"})
+			AbortStatus(c, http.StatusNotFound, "feed not found")
 			return
 		}
 
 		form := new(FeedCommentForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		body := strings.TrimSpace(form.Body)
 		if body == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "comment body is required"})
+			AbortStatus(c, http.StatusBadRequest, "comment body is required")
 			return
 		}
 
@@ -235,7 +235,7 @@ func feedsGroup(router *gin.Engine) {
 		}
 
 		if err := comment.Create(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 

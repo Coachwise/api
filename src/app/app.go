@@ -2,10 +2,11 @@ package app
 
 import (
 	"coachwise/src/app/views"
+	"coachwise/src/app/ws"
 	"coachwise/src/config"
 	"context"
 	"fmt"
-	"log"
+	"coachwise/src/logger"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,18 +29,22 @@ func Init() *gin.Engine {
 		if _, err := os.Stat(absPath); err == nil {
 			router.StaticFile("/openapi.yaml", absPath)
 		} else {
-			log.Printf("OpenAPI spec not found at %s: %v", absPath, err)
+			logger.Errorf("OpenAPI spec not found at %s: %v", absPath, err)
 		}
 	} else {
-		log.Printf("could not resolve OpenAPI path %s: %v", openAPIPath, err)
+		logger.Errorf("could not resolve OpenAPI path %s: %v", openAPIPath, err)
 	}
 
 	// Ensure uploads directory exists and serve it statically
 	uploadDir := filepath.Join(".", "uploads")
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		log.Fatalf("failed to create upload directory: %v", err)
+		logger.Fatalf("failed to create upload directory: %v", err)
 	}
 	router.Static("/uploads", uploadDir)
+
+	// Realtime refetch-signal socket. Registered BEFORE the CORS/2s-timeout
+	// middleware below so this long-lived connection isn't killed after 2s.
+	router.GET("/ws", ws.Handle)
 
 	// Configure CORS - allow configured origins or fall back to allow-all to avoid empty config panics
 	corsConfig := cors.DefaultConfig()

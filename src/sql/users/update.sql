@@ -6,5 +6,8 @@ UPDATE users
         phone=$6,
         username=$7,
         avatar_id=$8,
+        website=$9,
+        instagram=$10,
+        birthday=$11,
         updated_at=NOW()
 WHERE id=$1

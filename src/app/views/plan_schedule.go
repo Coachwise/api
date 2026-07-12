@@ -19,14 +19,14 @@ func planScheduleGroup(router *gin.Engine) {
 	g.POST("", func(c *gin.Context) {
 		form := new(PlanScheduleCreateForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		user := c.MustGet("user").(*models.User)
 
 		scheduledFor, err := time.Parse("2006-01-02", form.ScheduledFor)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid scheduled_for date"})
+			AbortStatus(c, http.StatusBadRequest, "invalid scheduled_for date")
 			return
 		}
 
@@ -40,7 +40,7 @@ func planScheduleGroup(router *gin.Engine) {
 		}
 
 		if err := models.CreatePlanSchedule(ctx.(context.Context), ps); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusCreated, ps)
@@ -53,7 +53,7 @@ func planScheduleGroup(router *gin.Engine) {
 
 		items, total, err := models.ListPlanSchedulePaginated(ctx.(context.Context), user.ID, page.(database.Paginate))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -67,19 +67,19 @@ func planScheduleGroup(router *gin.Engine) {
 		user := c.MustGet("user").(*models.User)
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid schedule id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid schedule id")
 			return
 		}
 		form := new(PlanScheduleUpdateForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		ctx := c.MustGet("ctx")
 		// Ensure ownership
 		items, err := models.ListPlanSchedule(ctx.(context.Context), user.ID, time.Time{}, time.Now().AddDate(100, 0, 0))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		var target *models.PlanSchedule
@@ -90,7 +90,7 @@ func planScheduleGroup(router *gin.Engine) {
 			}
 		}
 		if target == nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "schedule not found"})
+			AbortStatus(c, http.StatusNotFound, "schedule not found")
 			return
 		}
 		if form.Status != nil {
@@ -98,7 +98,7 @@ func planScheduleGroup(router *gin.Engine) {
 		}
 		target.Notes = form.Notes
 		if err := models.UpdatePlanSchedule(ctx.(context.Context), target); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, target)
@@ -108,14 +108,14 @@ func planScheduleGroup(router *gin.Engine) {
 		user := c.MustGet("user").(*models.User)
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid schedule id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid schedule id")
 			return
 		}
 		ctx := c.MustGet("ctx")
 		// Ensure ownership
 		items, err := models.ListPlanSchedule(ctx.(context.Context), user.ID, time.Time{}, time.Now().AddDate(100, 0, 0))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		owned := false
@@ -126,11 +126,11 @@ func planScheduleGroup(router *gin.Engine) {
 			}
 		}
 		if !owned {
-			c.JSON(http.StatusNotFound, gin.H{"error": "schedule not found"})
+			AbortStatus(c, http.StatusNotFound, "schedule not found")
 			return
 		}
 		if err := models.DeletePlanSchedule(ctx.(context.Context), id); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.Status(http.StatusOK)

@@ -2,7 +2,8 @@ package models
 
 import (
 	"context"
-	"log"
+	"errors"
+	"coachwise/src/logger"
 	"math/rand/v2"
 	"time"
 
@@ -11,6 +12,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
+
+// OTPCooldown is the minimum gap between codes for one user+purpose — stops a
+// single phone from minting endless SMS.
+const OTPCooldown = 2 * time.Minute
+
+// ErrOTPCooldown means a code was requested again too soon.
+var ErrOTPCooldown = errors.New("please wait before requesting another code")
 
 type OTP struct {
 	ID         uuid.UUID `db:"id" json:"id"`
@@ -75,6 +83,16 @@ func (o *OTP) Verify(ctx context.Context) error {
 }
 
 func NewOTP(ctx context.Context, userID uuid.UUID, perpose string) (*OTP, error) {
+	// Cooldown: refuse a new code if one was issued for this user+purpose within
+	// the last OTPCooldown — cheap anti-spam per phone/account.
+	if rows, err := database.Query(ctx, "otp/recent", userID, perpose, int(OTPCooldown.Seconds())); err == nil {
+		recent := rows.Next()
+		rows.Close()
+		if recent {
+			return nil, ErrOTPCooldown
+		}
+	}
+
 	u, err := GetUser(userID)
 	if err != nil {
 		return nil, err
@@ -88,8 +106,20 @@ func NewOTP(ctx context.Context, userID uuid.UUID, perpose string) (*OTP, error)
 	if err := o.Create(ctx); err != nil {
 		return nil, err
 	}
-	log.Printf("OTP generated for %s code=%d\n", o.Email, o.Code)
+	logger.Infof("OTP generated for %s code=%d\n", o.Email, o.Code)
 	return o, nil
+}
+
+// ConsumeOTP validates the latest matching OTP for a user+purpose and marks it
+// used in one atomic step. Returns true only when the code was valid, unexpired,
+// and unused — so codes can't be replayed.
+func ConsumeOTP(ctx context.Context, userID uuid.UUID, perpose string, code int) (bool, error) {
+	rows, err := database.Query(ctx, "otp/consume", userID, perpose, code)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	return rows.Next(), nil
 }
 
 func GetOTPByUserID(user_id uuid.UUID) (*OTP, error) {

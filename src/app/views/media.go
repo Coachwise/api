@@ -58,7 +58,7 @@ func mediaGroup(router *gin.Engine) {
 
 		file, err := c.FormFile("file")
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+			AbortStatus(c, http.StatusBadRequest, "file is required")
 			return
 		}
 
@@ -67,14 +67,14 @@ func mediaGroup(router *gin.Engine) {
 		dst := filepath.Join(uploadDir, storedName)
 
 		if err := c.SaveUploadedFile(file, dst); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file"})
+			AbortStatus(c, http.StatusInternalServerError, "failed to save file")
 			return
 		}
 
 		url := resolveMediaURL(c, "/uploads/"+storedName)
 		media, err := models.CreateMedia(ctx.(context.Context), user.ID, url, storedName, file.Size)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -86,7 +86,7 @@ func mediaGroup(router *gin.Engine) {
 
 		var form mediaForm
 		if err := c.ShouldBindJSON(&form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		form.URL = resolveMediaURL(c, form.URL)
@@ -94,7 +94,7 @@ func mediaGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 		media, err := models.CreateMedia(ctx.(context.Context), user.ID, form.URL, form.Filename, form.SizeBytes)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, media)
@@ -108,7 +108,7 @@ func mediaGroup(router *gin.Engine) {
 		limit, offset := parsePagination(c, 50, 200)
 		items, err := models.ListMedia(ctx.(context.Context), user.ID, limit, offset)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 		c.JSON(http.StatusOK, items)

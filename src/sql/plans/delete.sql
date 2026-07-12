@@ -1,0 +1,1 @@
+DELETE FROM plans WHERE id = $1 RETURNING id

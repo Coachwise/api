@@ -17,10 +17,13 @@ type User struct {
 	Email           string    `db:"email" json:"email"`
 	Password        *string   `db:"password" json:"-"`
 	JobTitle        *string   `db:"job_title" json:"job_title"`
-	Bio             *string   `db:"bio" json:"-"`
+	Bio             *string   `db:"bio" json:"bio"`
 	FirstName       *string   `db:"first_name" json:"first_name"`
 	LastName        *string   `db:"last_name" json:"last_name"`
 	Phone           *string   `db:"phone" json:"phone"`
+	Website         *string   `db:"website" json:"website"`
+	Instagram       *string   `db:"instagram" json:"instagram"`
+	Birthday        *time.Time `db:"birthday" json:"birthday"`
 	Status          string    `db:"status" json:"status"`
 	PasswordExpired bool      `db:"password_expired" json:"password_expired"`
 
@@ -39,6 +42,8 @@ type User struct {
 	AvatarID   *uuid.UUID     `db:"avatar_id" json:"avatar_id"`
 	Avatar     *Media         `db:"-" json:"avatar"`
 	AvatarJson types.JSONText `db:"avatar" json:"-"`
+	// Absorbs the generated tsvector from `SELECT u.*`; not serialized.
+	SearchVector *string `db:"search_vector" json:"-"`
 }
 
 func (User) TableName() string {
@@ -126,6 +131,7 @@ func (u *User) Update(ctx context.Context) error {
 		ctx,
 		"users/update",
 		u.ID, u.FirstName, u.LastName, u.Bio, u.JobTitle, u.Phone, u.Username, u.AvatarID,
+		u.Website, u.Instagram, u.Birthday,
 	)
 	if err != nil {
 		return err
@@ -165,6 +171,38 @@ func GetUserByUsername(username string) (*User, error) {
 	return u, nil
 }
 
+func GetUserByPhone(phone string) (*User, error) {
+	u := new(User)
+	if err := database.Get(u, "users/fetch_by_phone", phone); err != nil {
+		return nil, err
+	}
+	database.Fetch(u, u.ID)
+	return u, nil
+}
+
+// GetOrCreatePhoneUser returns the account for a phone, creating a passwordless
+// one (placeholder email, auto username, INACTIVE) on first use.
+func GetOrCreatePhoneUser(ctx context.Context, phone string) (*User, error) {
+	if u, err := GetUserByPhone(phone); err == nil {
+		return u, nil
+	}
+	username := "u" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	email := phone + "@phone.coachwise.local"
+	u := new(User)
+	rows, err := database.Query(ctx, "users/create_phone", username, email, phone)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		if err := rows.StructScan(u); err != nil {
+			rows.Close()
+			return nil, err
+		}
+	}
+	rows.Close()
+	return GetUserByPhone(phone)
+}
+
 // ListUsersPaginated searches users by username or full name. When coachOnly is
 // true it returns only users flagged as coaches; excludeID drops that user from
 // the results (used to hide the requester from their own search).
@@ -176,7 +214,7 @@ func ListUsersPaginated(ctx context.Context, search string, coachOnly bool, excl
 		total     int
 	)
 
-	if err := database.QuerySelect("users/list", &fetchList, strings.TrimSpace(search), coachOnly, excludeID, p.Limit, p.Offset); err != nil {
+	if err := database.QuerySelect("users/list", &fetchList, toTSQueryPrefix(search), coachOnly, excludeID, p.Limit, p.Offset); err != nil {
 		return nil, 0, err
 	}
 

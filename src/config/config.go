@@ -30,6 +30,53 @@ type ConfigType struct {
 		// approve/reject links. When empty, the links are logged instead.
 		ApplicationWebhook string `mapstructure:"application_webhook"`
 	} `mapstructure:"discord"`
+	// Nats is the message queue used to fan events out to consumers (DB-insert
+	// now; push / email / SMS later). When URL is empty the queue is disabled and
+	// events are dropped — the API still works.
+	Nats struct {
+		URL string `mapstructure:"url"`
+	} `mapstructure:"nats"`
+	// SMS gateways for OTP codes, chosen by the recipient's country (dial code) —
+	// like the payments providers. Kavenegar handles Iran (+98); SendGrid (or
+	// another) covers the rest later. No matching provider → the code is logged
+	// (dev). Each entry: type ("kavenegar" | "sendgrid"), the countries (dial
+	// codes) it serves, api_key, and (Kavenegar OTP) the verify template name.
+	SMS struct {
+		Providers []struct {
+			Name      string   `mapstructure:"name"`
+			Type      string   `mapstructure:"type"`
+			Countries []string `mapstructure:"countries"`
+			APIKey    string   `mapstructure:"api_key"`
+			Sender    string   `mapstructure:"sender"`
+			Template  string   `mapstructure:"template"`
+			BaseURL   string   `mapstructure:"base_url"`
+		} `mapstructure:"providers"`
+	} `mapstructure:"sms"`
+	// Payment providers for wallet top-ups. Each provider declares the currencies
+	// it handles; the buyer picks a currency then one of its providers. Empty list
+	// falls back to a stub covering default_currency. Plug Iranian gateways or
+	// Stripe by adding entries later.
+	Payments struct {
+		DefaultCurrency string `mapstructure:"default_currency"`
+		// CallbackURL is the PUBLIC URL a redirect gateway (SEP) posts the result
+		// to (must be reachable from the internet + IP-whitelisted at the gateway).
+		// ReturnURL is the frontend page the user's browser is bounced back to.
+		CallbackURL string `mapstructure:"callback_url"`
+		ReturnURL   string `mapstructure:"return_url"`
+		Providers   []struct {
+			Name       string   `mapstructure:"name"`
+			Title      string   `mapstructure:"title"`
+			Currencies []string `mapstructure:"currencies"`
+			APIKey     string   `mapstructure:"api_key"`
+			// Type selects the implementation: "" / "stub" (auto-success) or "sep"
+			// (Saman redirect gateway). TerminalID + BaseURL configure "sep".
+			Type       string `mapstructure:"type"`
+			TerminalID string `mapstructure:"terminal_id"`
+			BaseURL    string `mapstructure:"base_url"`
+			// Logo is a client-served asset path shown in the payment-method picker.
+			Logo string `mapstructure:"logo"`
+		} `mapstructure:"providers"`
+	} `mapstructure:"payments"`
 }
 
 func Init(configPath string) {

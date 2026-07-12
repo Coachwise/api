@@ -35,6 +35,8 @@ type Plan struct {
 	// UserJson db:"user" field to it and unmarshals the owner into User.
 	User     *User          `db:"-" json:"user"`
 	UserJson types.JSONText `db:"user" json:"-"`
+	// Absorbs the generated tsvector from `SELECT p.*`; not serialized.
+	SearchVector *string `db:"search_vector" json:"-"`
 }
 
 type PlanExercise struct {
@@ -126,25 +128,29 @@ func CountPersonalPlans(ctx context.Context, userID uuid.UUID) (int, error) {
 	return counts[0].Count, nil
 }
 
-func ListPlans(ctx context.Context, userID uuid.UUID, onlyPublic bool) ([]Plan, error) {
+func ListPlansPaginated(ctx context.Context, userID uuid.UUID, onlyPublic bool, search string, p database.Paginate) ([]Plan, int, error) {
 	plans := []Plan{}
-	var ids []uuid.UUID
-	if err := database.QuerySelect("plans/list", &ids, userID, onlyPublic); err != nil {
-		return nil, err
+	var (
+		fetchList []database.FetchList
+		total     int
+	)
+	if err := database.QuerySelect("plans/list", &fetchList, userID, onlyPublic, toTSQueryPrefix(search), p.Limit, p.Offset); err != nil {
+		return nil, 0, err
 	}
-	if len(ids) == 0 {
-		return plans, nil
+	if len(fetchList) == 0 {
+		return plans, 0, nil
 	}
+	total = fetchList[0].TotalCount
 	// Fetch hydrates the rows via plans/fetch (incl. the owner user) and
 	// auto-unmarshals the json fields.
-	args := make([]interface{}, len(ids))
-	for i, id := range ids {
-		args[i] = id
+	args := make([]interface{}, len(fetchList))
+	for i, f := range fetchList {
+		args[i] = f.ID
 	}
 	if err := database.Fetch(&plans, args...); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return plans, nil
+	return plans, total, nil
 }
 
 func GetPlanForUser(ctx context.Context, planID, userID uuid.UUID) (*Plan, error) {

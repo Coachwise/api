@@ -29,11 +29,11 @@ func workoutsGroup(router *gin.Engine) {
 	g.POST("", func(c *gin.Context) {
 		form := new(CreateSessionForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		if !allowedSessionTypes[form.SessionType] {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session type"})
+			AbortStatus(c, http.StatusBadRequest, "invalid session type")
 			return
 		}
 
@@ -51,7 +51,7 @@ func workoutsGroup(router *gin.Engine) {
 		}
 
 		if err := session.Create(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -66,7 +66,7 @@ func workoutsGroup(router *gin.Engine) {
 
 		items, total, err := models.GetUserSessionsPaginated(ctx.(context.Context), user.ID, page.(database.Paginate))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -88,7 +88,7 @@ func workoutsGroup(router *gin.Engine) {
 
 		sessions, err := models.GetActiveSessions(ctx.(context.Context), user.ID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -99,13 +99,13 @@ func workoutsGroup(router *gin.Engine) {
 	g.GET("/:id", func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid session id")
 			return
 		}
 
 		session, err := models.GetSession(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			AbortStatus(c, http.StatusNotFound, "session not found")
 			return
 		}
 
@@ -120,7 +120,7 @@ func workoutsGroup(router *gin.Engine) {
 
 		items, total, err := models.ListDailyAnalytics(ctx.(context.Context), user.ID, page.(database.Paginate))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -138,25 +138,25 @@ func workoutsGroup(router *gin.Engine) {
 	g.PUT("/:id", func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid session id")
 			return
 		}
 
 		form := new(UpdateSessionForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		session, err := models.GetSession(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			AbortStatus(c, http.StatusNotFound, "session not found")
 			return
 		}
 
 		user := c.MustGet("user").(*models.User)
 		if session.UserID != user.ID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			AbortStatus(c, http.StatusForbidden, "forbidden")
 			return
 		}
 
@@ -177,7 +177,7 @@ func workoutsGroup(router *gin.Engine) {
 		session.Quality = &form.Quality
 
 		if err := session.Update(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -188,14 +188,14 @@ func workoutsGroup(router *gin.Engine) {
 	g.GET("/:id/logs", func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid session id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid session id")
 			return
 		}
 
 		ctx := c.MustGet("ctx")
 		logs, err := models.GetSessionWorkoutLogs(ctx.(context.Context), id)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -211,7 +211,7 @@ func workoutLogGroup(router *gin.Engine) {
 	g.POST("", func(c *gin.Context) {
 		form := new(CreateWorkoutLogForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
@@ -226,7 +226,7 @@ func workoutLogGroup(router *gin.Engine) {
 		log.CreatedAt = time.Now()
 
 		if err := log.Create(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -248,35 +248,35 @@ func workoutLogGroup(router *gin.Engine) {
 	g.PUT("/:id", func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid log id")
 			return
 		}
 
 		form := new(UpdateWorkoutLogForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		log, err := models.GetWorkoutLog(id)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "log not found"})
+			AbortStatus(c, http.StatusNotFound, "log not found")
 			return
 		}
 		if log.SessionID == nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			AbortStatus(c, http.StatusForbidden, "forbidden")
 			return
 		}
 
 		session, err := models.GetSession(*log.SessionID)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+			AbortStatus(c, http.StatusNotFound, "session not found")
 			return
 		}
 
 		user := c.MustGet("user").(*models.User)
 		if session.UserID != user.ID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			AbortStatus(c, http.StatusForbidden, "forbidden")
 			return
 		}
 
@@ -285,7 +285,7 @@ func workoutLogGroup(router *gin.Engine) {
 		utils.Copy(form, log)
 
 		if err := log.Update(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -296,14 +296,14 @@ func workoutLogGroup(router *gin.Engine) {
 	g.DELETE("/:id", func(c *gin.Context) {
 		id, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid log id")
 			return
 		}
 		user := c.MustGet("user").(*models.User)
 		ctx := c.MustGet("ctx").(context.Context)
 
 		if err := models.DeleteWorkoutLog(ctx, id, user.ID); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			Abort(c, CodeNotFound)
 			return
 		}
 
@@ -314,7 +314,7 @@ func workoutLogGroup(router *gin.Engine) {
 	g.POST("/:id/tags", func(c *gin.Context) {
 		logID, err := uuid.Parse(c.Param("id"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid log id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid log id")
 			return
 		}
 
@@ -322,19 +322,19 @@ func workoutLogGroup(router *gin.Engine) {
 			TagID string `json:"tag_id" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&body); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		tagID, err := uuid.Parse(body.TagID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tag id"})
+			AbortStatus(c, http.StatusBadRequest, "invalid tag id")
 			return
 		}
 
 		ctx := c.MustGet("ctx")
 		if err := models.AddTagToWorkoutLog(ctx.(context.Context), logID, tagID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 
@@ -356,7 +356,7 @@ func tagGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 		tags, totalCount, err := models.SearchTags(ctx.(context.Context), query, sportType, limit, offset)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortServer(c, err)
 			return
 		}
 

@@ -14,8 +14,20 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+// Access tokens are short-lived (a leaked one dies fast); refresh tokens are
+// long and rotated on use, so day-to-day sessions survive without keeping a
+// long-lived access token around.
+const (
+	AccessTokenTTL  = time.Hour
+	RefreshTokenTTL = 30 * 24 * time.Hour
+)
+
 func GenerateToken(id string, refresh bool) (string, error) {
-	expirationTime := time.Now().Add(24 * time.Hour)
+	ttl := AccessTokenTTL
+	if refresh {
+		ttl = RefreshTokenTTL
+	}
+	expirationTime := time.Now().Add(ttl)
 	claims := &Claims{
 		ID:      id,
 		Refresh: refresh,

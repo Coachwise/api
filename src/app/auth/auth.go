@@ -37,6 +37,17 @@ type RefreshTokenForm struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+// PhoneOTPForm requests an OTP for a phone (passwordless login/signup).
+type PhoneOTPForm struct {
+	Phone string `json:"phone" binding:"required,min=6"`
+}
+
+// PhoneVerifyForm confirms a phone OTP and issues tokens.
+type PhoneVerifyForm struct {
+	Phone string      `json:"phone" binding:"required,min=6"`
+	Code  interface{} `json:"code" binding:"required"`
+}
+
 type PreRegisterForm struct {
 	Email    *string `json:"email" binding:"omitempty,email"`
 	Username *string `json:"username"`

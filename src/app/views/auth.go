@@ -3,15 +3,34 @@ package views
 import (
 	"coachwise/src/app/auth"
 	"coachwise/src/app/models"
+	"coachwise/src/events"
 	"coachwise/src/utils"
 	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+// otpCodeInt normalizes a JSON code (string or number) to an int.
+func otpCodeInt(v interface{}) (int, bool) {
+	var s string
+	switch t := v.(type) {
+	case string:
+		s = t
+	case float64:
+		s = strconv.Itoa(int(t))
+	case int:
+		s = strconv.Itoa(t)
+	default:
+		s = fmt.Sprint(t)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	return n, err == nil
+}
 
 func authGroup(router *gin.Engine) {
 	g := router.Group("auth")
@@ -19,7 +38,7 @@ func authGroup(router *gin.Engine) {
 	g.POST("/login", func(c *gin.Context) {
 		form := new(auth.LoginForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		var (
@@ -35,21 +54,21 @@ func authGroup(router *gin.Engine) {
 				u, err = models.GetUserByEmail(form.Username)
 			}
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email or username required"})
+			Abort(c, CodeBadRequest)
 			return
 		}
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email/password not match"})
+			Abort(c, CodeInvalidCredentials)
 			return
 		}
 		if err := auth.CheckPasswordHash(form.Password, *u.Password); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email/password not match"})
+			Abort(c, CodeInvalidCredentials)
 			return
 		}
 
 		tokens, err := auth.GenerateFullTokens(u.ID.String())
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			Abort(c, CodeTokenGeneration)
 			return
 		}
 
@@ -60,7 +79,7 @@ func authGroup(router *gin.Engine) {
 	g.POST("/register", func(c *gin.Context) {
 		form := new(auth.RegisterForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
@@ -92,28 +111,22 @@ func authGroup(router *gin.Engine) {
 
 		// Avoid hitting unique constraints repeatedly so we don't trip circuit breakers
 		if _, err := models.GetUserByEmail(u.Email); err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email already exists"})
+			Abort(c, CodeEmailExists)
 			return
 		}
 		if _, err := models.GetUserByUsername(u.Username); err == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "username already exists"})
+			Abort(c, CodeUsernameExists)
 			return
 		}
 
 		ctx := c.MustGet("ctx")
 		if err := u.Create(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortMsg(c, CodeUnknown, err.Error())
 			return
 		}
 
-		_, err := models.NewOTP(ctx.(context.Context), u.ID, "AUTH")
-
-		if err != nil {
-			fmt.Println("otp error:", err)
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   err.Error(),
-				"message": "Couldn't save OTP",
-			})
+		if _, err := models.NewOTP(ctx.(context.Context), u.ID, "AUTH"); err != nil {
+			AbortMsg(c, CodeOTPSendFailed, err.Error())
 			return
 		}
 
@@ -123,33 +136,35 @@ func authGroup(router *gin.Engine) {
 	g.POST("/refresh", func(c *gin.Context) {
 		form := new(auth.RefreshTokenForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		if strings.TrimSpace(form.RefreshToken) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "refresh token required"})
+			Abort(c, CodeRefreshInvalid)
 			return
 		}
 
 		claims, err := auth.VerifyToken(form.RefreshToken)
-
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			Abort(c, CodeRefreshInvalid)
+			return
+		}
+		// Only an actual refresh token can be exchanged — not an access token.
+		if !claims.Refresh {
+			Abort(c, CodeRefreshInvalid)
 			return
 		}
 
-		tb := models.TokenBlacklist{
-			Token: form.RefreshToken,
-		}
+		tb := models.TokenBlacklist{Token: form.RefreshToken}
 		ctx := c.MustGet("ctx")
 		if err := tb.Create(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortMsg(c, CodeUnknown, err.Error())
 			return
 		}
 
 		tokens, err := auth.GenerateFullTokens(claims.ID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			Abort(c, CodeTokenGeneration)
 			return
 		}
 
@@ -163,35 +178,33 @@ func authGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 		tb := models.TokenBlacklist{Token: tokenStr}
 		if err := tb.Create(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortMsg(c, CodeUnknown, err.Error())
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
-	g.POST("/otp", func(c *gin.Context) {
+	g.POST("/otp", rateLimit(5, time.Minute), func(c *gin.Context) {
 		form := new(auth.OTPSendForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		u, err := models.GetUserByEmail(form.Email)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   err.Error(),
-				"message": "User does not found",
-			})
+			Abort(c, CodeUserNotFound)
 			return
 		}
 
 		ctx := c.MustGet("ctx")
-
-		if _, err = models.NewOTP(ctx.(context.Context), u.ID, "AUTH"); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   err.Error(),
-				"message": "Couldn't save OTP",
-			})
+		_, err = models.NewOTP(ctx.(context.Context), u.ID, "AUTH")
+		if err == models.ErrOTPCooldown {
+			Abort(c, CodeOTPCooldown)
+			return
+		}
+		if err != nil {
+			Abort(c, CodeOTPSendFailed)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
@@ -200,81 +213,127 @@ func authGroup(router *gin.Engine) {
 	g.POST("/otp/verify", func(c *gin.Context) {
 		form := new(auth.OTPConfirmForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
-		codeStr := ""
-		switch v := form.Code.(type) {
-		case string:
-			codeStr = v
-		case float64:
-			codeStr = strconv.Itoa(int(v))
-		case int:
-			codeStr = strconv.Itoa(v)
-		default:
-			codeStr = fmt.Sprint(v)
-		}
-		if strings.TrimSpace(codeStr) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid code"})
+		code, ok := otpCodeInt(form.Code)
+		if !ok {
+			Abort(c, CodeOTPInvalid)
 			return
 		}
 
 		u, err := models.GetUserByEmail(form.Email)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email/password not match"})
+			Abort(c, CodeOTPInvalid)
 			return
 		}
 
-		otp, err := models.GetOTPByEmail(form.Email)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid code"})
-			return
-		}
-
-		if strconv.Itoa(otp.Code) != codeStr {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid code"})
-			return
-		}
-
-		//For testing, if no OTP found just issue tokens
 		ctx := c.MustGet("ctx")
+		// Validate + consume atomically (checks expiry, single-use).
+		valid, err := models.ConsumeOTP(ctx.(context.Context), u.ID, "AUTH", code)
+		if err != nil || !valid {
+			Abort(c, CodeOTPInvalid)
+			return
+		}
+
 		u.Status = "ACTIVE"
 		_ = u.Verify(ctx.(context.Context))
 
 		tokens, err := auth.GenerateFullTokens(u.ID.String())
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			Abort(c, CodeTokenGeneration)
 			return
 		}
 
 		c.JSON(http.StatusOK, tokens)
 	})
 
-	g.POST("/password/forget", func(c *gin.Context) {
+	// Passwordless phone login: send an OTP (creating the account on first use).
+	// Rate-limited per IP; the model also enforces a per-phone cooldown.
+	g.POST("/phone/otp", rateLimit(5, time.Minute), func(c *gin.Context) {
+		form := new(auth.PhoneOTPForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			AbortValidation(c, err)
+			return
+		}
+		ctx := c.MustGet("ctx").(context.Context)
+		u, err := models.GetOrCreatePhoneUser(ctx, strings.TrimSpace(form.Phone))
+		if err != nil {
+			AbortMsg(c, CodeUnknown, err.Error())
+			return
+		}
+		otp, err := models.NewOTP(ctx, u.ID, "AUTH")
+		if err == models.ErrOTPCooldown {
+			Abort(c, CodeOTPCooldown)
+			return
+		}
+		if err != nil {
+			Abort(c, CodeOTPSendFailed)
+			return
+		}
+		// Queue the OTP so this request returns fast; a worker delivers it via the
+		// country's SMS provider (Kavenegar verify template for Iran).
+		events.EmitOTP(form.Phone, fmt.Sprintf("%d", otp.Code))
+		c.JSON(http.StatusOK, gin.H{"message": "code sent"})
+	})
 
+	// Confirm a phone OTP and issue tokens.
+	g.POST("/phone/verify", func(c *gin.Context) {
+		form := new(auth.PhoneVerifyForm)
+		if err := c.ShouldBindJSON(form); err != nil {
+			AbortValidation(c, err)
+			return
+		}
+		code, ok := otpCodeInt(form.Code)
+		if !ok {
+			Abort(c, CodeOTPInvalid)
+			return
+		}
+		ctx := c.MustGet("ctx").(context.Context)
+		u, err := models.GetUserByPhone(strings.TrimSpace(form.Phone))
+		if err != nil {
+			Abort(c, CodeOTPInvalid)
+			return
+		}
+		valid, err := models.ConsumeOTP(ctx, u.ID, "AUTH", code)
+		if err != nil || !valid {
+			Abort(c, CodeOTPInvalid)
+			return
+		}
+		u.Status = "ACTIVE"
+		_ = u.Verify(ctx)
+		tokens, err := auth.GenerateFullTokens(u.ID.String())
+		if err != nil {
+			Abort(c, CodeTokenGeneration)
+			return
+		}
+		tokens["token"] = tokens["access_token"]
+		c.JSON(http.StatusOK, tokens)
+	})
+
+	g.POST("/password/forget", rateLimit(5, time.Minute), func(c *gin.Context) {
 		form := new(auth.OTPSendForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 
 		u, err := models.GetUserByEmail(form.Email)
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   err.Error(),
-				"message": "User does not found",
-			})
+			Abort(c, CodeUserNotFound)
 			return
 		}
 
-		//Creating OTP
+		// Creating OTP
 		ctx := c.MustGet("ctx")
-		if _, err = models.NewOTP(ctx.(context.Context), u.ID, "FORGET_PASSWORD"); err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":   err.Error(),
-				"message": "Couldn't save OTP",
-			})
+		_, err = models.NewOTP(ctx.(context.Context), u.ID, "FORGET_PASSWORD")
+		if err == models.ErrOTPCooldown {
+			Abort(c, CodeOTPCooldown)
+			return
+		}
+		if err != nil {
+			Abort(c, CodeOTPSendFailed)
 			return
 		}
 
@@ -282,35 +341,30 @@ func authGroup(router *gin.Engine) {
 		_ = u.ExpirePassword(ctx.(context.Context))
 
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
-
 	})
 
 	g.PUT("/password", auth.LoginRequired(), func(c *gin.Context) {
-
 		ctx := c.MustGet("ctx")
 		user := c.MustGet("user").(*models.User)
 		var password string
 
 		if user.PasswordExpired || user.Password == nil {
-
-			//Direct Password change
+			// Direct password change
 			form := new(auth.DirectPasswordChangeForm)
 			if err := c.ShouldBindJSON(form); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				AbortValidation(c, err)
 				return
 			}
 			password = form.Password
-
 		} else {
-
-			//Normal Password change
+			// Normal password change
 			form := new(auth.NormalPasswordChangeForm)
 			if err := c.ShouldBindJSON(form); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				AbortValidation(c, err)
 				return
 			}
 			if err := auth.CheckPasswordHash(form.CurrentPassword, *user.Password); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "email/password not match"})
+				Abort(c, CodeInvalidCredentials)
 				return
 			}
 			password = form.Password
@@ -318,25 +372,23 @@ func authGroup(router *gin.Engine) {
 
 		newPassword, err := auth.HashPassword(password)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			AbortMsg(c, CodeUnknown, err.Error())
 			return
 		}
 
 		user.Password = &newPassword
 		if err := user.UpdatePassword(ctx.(context.Context)); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortMsg(c, CodeUnknown, err.Error())
 			return
 		}
 
 		c.JSON(http.StatusAccepted, gin.H{"message": "success"})
-
 	})
 
 	g.POST("/pre-register", func(c *gin.Context) {
-
 		form := new(auth.PreRegisterForm)
 		if err := c.ShouldBindJSON(form); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			AbortValidation(c, err)
 			return
 		}
 		emailStatus := "UNKOWN"
@@ -359,7 +411,5 @@ func authGroup(router *gin.Engine) {
 			"email":    emailStatus,
 			"username": usernameStatus,
 		})
-
 	})
-
 }

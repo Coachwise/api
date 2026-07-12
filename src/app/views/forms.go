@@ -177,13 +177,70 @@ type PlanScheduleUpdateForm struct {
 	Notes  *string `json:"notes"`
 }
 
+// ProfileForm is a partial update: every field is optional, and only the fields
+// actually present in the request body are applied. This prevents an omitted
+// field (e.g. phone) from being blanked over the stored value. Client-side flows
+// (onboarding) enforce their own required fields.
 type ProfileForm struct {
-	FirstName string     `json:"first_name" binding:"required"`
-	LastName  string     `json:"last_name" binding:"required"`
-	JobTitle  string     `json:"job_title"`
-	Bio       string     `json:"bio"`
-	Phone     string     `json:"phone"`
+	FirstName *string    `json:"first_name" binding:"omitempty,min=1"`
+	LastName  *string    `json:"last_name" binding:"omitempty,min=1"`
+	Username  *string    `json:"username" binding:"omitempty,min=3"`
+	JobTitle  *string    `json:"job_title"`
+	Bio       *string    `json:"bio"`
+	Phone     *string    `json:"phone"`
 	AvatarID  *uuid.UUID `json:"avatar_id"`
+	Website   *string    `json:"website"`
+	Instagram *string    `json:"instagram"`
+	// Birthday is an ISO date "YYYY-MM-DD" (or "" to clear).
+	Birthday *string `json:"birthday"`
+}
+
+// Billing / wallet request bodies.
+type DurationForm struct {
+	Months int `json:"months" binding:"required,min=1"`
+}
+
+// PurchaseForm is the buy body: the chosen currency + provider, plus months for
+// subscription purchases (ignored for one-time packages).
+type PurchaseForm struct {
+	Currency string `json:"currency" binding:"required"`
+	Provider string `json:"provider" binding:"required"`
+	Months   int    `json:"months"`
+}
+
+// PackagePriceForm sets a package's price in one currency (coach package builder).
+type PackagePriceForm struct {
+	Currency string `json:"currency" binding:"required"`
+	Amount   int64  `json:"amount" binding:"required,min=1"`
+}
+
+type TopUpForm struct {
+	Amount   int64  `json:"amount" binding:"required,min=1"`
+	Currency string `json:"currency"`
+	Provider string `json:"provider" binding:"required"`
+}
+
+type PayoutForm struct {
+	Amount int64   `json:"amount" binding:"required,min=1"`
+	Note   *string `json:"note"`
+}
+
+// TopUpInitiateForm starts a redirect (gateway) wallet top-up.
+type TopUpInitiateForm struct {
+	Amount   int64  `json:"amount" binding:"required,min=1"`
+	Provider string `json:"provider" binding:"required"`
+}
+
+// PayoutAccountForm is the shared create/update body for a coach's payout
+// destination. Which fields matter depends on the wallet currency: IRR uses
+// CardNumber (+ optional AccountHolder); other currencies use the bank/Stripe
+// fields once those methods are wired.
+type PayoutAccountForm struct {
+	AccountHolder *string `json:"account_holder"`
+	CardNumber    *string `json:"card_number"`
+	IBAN          *string `json:"iban"`
+	BankName      *string `json:"bank_name"`
+	Swift         *string `json:"swift"`
 }
 
 type CoachApplicationForm struct {

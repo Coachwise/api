@@ -1,0 +1,9 @@
+.git
+.github
+tmp
+uploads
+*config.yml
+build
+node_modules
+*.md
+tests
