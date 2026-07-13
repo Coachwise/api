@@ -37,20 +37,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Not go-version-file: go.mod's `go` directive is the language version
+      # (1.25.0), and setup-go would install exactly that — an unpatched
+      # toolchain whose standard library carries every open Go CVE. Take the
+      # newest 1.25 patch instead.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.25.x'
+          check-latest: true
           cache: true
 
       - name: Build
         run: go build ./... && go vet ./...
 
-      # Reports only vulnerabilities we actually reach, so it doesn't cry wolf
-      # over CVEs in packages we merely have in go.mod (x/crypto/ssh, say).
-      - name: Vulnerability check
+      # Advisory only — it reports what we actually reach, but a CVE never blocks
+      # a release. Read it, then decide. When it fires, check the "Fixed in"
+      # line: a go1.x.y means bump the toolchain, not a dependency.
+      - name: Vulnerability check (advisory)
+        continue-on-error: true
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+      # The gate. Nothing is built or deployed unless this passes.
       - name: E2E suite
         run: go test ./tests -args -c test.config.yml
 

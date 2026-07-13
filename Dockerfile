@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # ---- build stage: compile the three static binaries ----
-FROM golang:1.24-alpine AS build
+# Track the latest 1.25 patch: the standard library is where most CVEs land, and
+# they're only fixed by a newer Go, never by a dependency bump.
+FROM golang:1.25-alpine AS build
 WORKDIR /src
 RUN apk add --no-cache git
 COPY go.mod go.sum ./
