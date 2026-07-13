@@ -24,7 +24,11 @@ jobs:
         env:
           POSTGRES_USER: coachwise
           POSTGRES_PASSWORD: passwd
-          POSTGRES_DB: coachwise_test
+          # Not coachwise_test — the suite creates and drops that itself. This is
+          # the database the server-level connection lands in while doing so:
+          # the driver falls back to dbname = username when the URL carries no
+          # database, so one named after the user has to exist.
+          POSTGRES_DB: coachwise
         ports:
           - 5432:5432
         options: >-
