@@ -344,7 +344,8 @@ func packagesGroup() {
 			req2.Header.Set("Content-Type", "application/json")
 			req2.Header.Set("Authorization", "Bearer "+coachToken)
 			router.ServeHTTP(w2, req2)
-			Expect(w2.Code).To(Equal(400))
+			// A client already holding a package is a conflict, not bad input.
+			Expect(w2.Code).To(Equal(409))
 		})
 	})
 

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/gin-gonic/gin"
 )

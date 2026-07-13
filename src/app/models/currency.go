@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 // ErrUnsupportedCurrency means the code isn't a platform-supported (enabled)

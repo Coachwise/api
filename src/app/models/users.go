@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx/types"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/google/uuid"
 )

@@ -4,20 +4,41 @@ import (
 	"coachwise/src/app/auth"
 	"coachwise/src/app/models"
 	"coachwise/src/config"
+	"coachwise/src/storage"
 	"context"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"path/filepath"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type mediaForm struct {
 	URL       string `json:"url" binding:"required"`
 	Filename  string `json:"filename" binding:"required"`
 	SizeBytes int64  `json:"size_bytes"`
+}
+
+// sniffMediaType reads the first bytes to decide what the file really is, then
+// rewinds so the caller can still store it whole.
+func sniffMediaType(file multipart.File) (string, error) {
+	head := make([]byte, 512)
+	n, err := file.Read(head)
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("file could not be read")
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("file could not be read")
+	}
+
+	contentType := http.DetectContentType(head[:n])
+	if err := storage.CheckMediaType(contentType); err != nil {
+		return "", err
+	}
+	return contentType, nil
 }
 
 func resolveMediaURL(c *gin.Context, url string) string {
@@ -51,28 +72,44 @@ func mediaGroup(router *gin.Engine) {
 	g := router.Group("media")
 	g.Use(auth.LoginRequired())
 
-	// Multipart upload: saves file locally to ./uploads and records media entry
+	// Multipart upload: hands the file to the storage service and records it.
 	g.POST("/upload", func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
-		ctx := c.MustGet("ctx")
+		ctx := c.MustGet("ctx").(context.Context)
 
-		file, err := c.FormFile("file")
+		header, err := c.FormFile("file")
 		if err != nil {
 			AbortStatus(c, http.StatusBadRequest, "file is required")
 			return
 		}
-
-		uploadDir := filepath.Join(".", "uploads")
-		storedName := uuid.NewString() + filepath.Ext(file.Filename)
-		dst := filepath.Join(uploadDir, storedName)
-
-		if err := c.SaveUploadedFile(file, dst); err != nil {
-			AbortStatus(c, http.StatusInternalServerError, "failed to save file")
+		if header.Size > storage.MaxSize() {
+			AbortStatus(c, http.StatusRequestEntityTooLarge, storage.ErrTooLarge.Error())
 			return
 		}
 
-		url := resolveMediaURL(c, "/uploads/"+storedName)
-		media, err := models.CreateMedia(ctx.(context.Context), user.ID, url, storedName, file.Size)
+		file, err := header.Open()
+		if err != nil {
+			AbortStatus(c, http.StatusBadRequest, "file could not be read")
+			return
+		}
+		defer file.Close()
+
+		// Sniff the type from the bytes; the client's Content-Type is a claim,
+		// not evidence.
+		contentType, err := sniffMediaType(file)
+		if err != nil {
+			AbortStatus(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		key := storage.Key(storage.KindMedia, header.Filename)
+		if err := storage.Get().Put(ctx, key, file, header.Size, contentType); err != nil {
+			AbortServer(c, err)
+			return
+		}
+
+		url := storage.Get().URL(key)
+		media, err := models.CreateMedia(ctx, user.ID, url, filepath.Base(header.Filename), header.Size)
 		if err != nil {
 			AbortServer(c, err)
 			return

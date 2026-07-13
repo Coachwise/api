@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"coachwise/src/logger"
 	"coachwise/src/payments"

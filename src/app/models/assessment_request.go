@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -13,6 +13,10 @@ import (
 )
 
 var ErrTestRequestNotFound = errors.New("test request not found")
+
+// ErrAssessmentNoResults means every record the athlete sent was blank — nothing
+// to store. It's bad input, so the handler answers 400 rather than 500.
+var ErrAssessmentNoResults = errors.New("a self-assessment needs at least one result")
 
 // TestRequest is an assessment to perform. Either a coach asks an athlete to take
 // a test (test_id + coach_id set) or an athlete self-assesses (both NULL, own
@@ -333,7 +337,7 @@ func CreateSelfAssessment(ctx context.Context, athleteID uuid.UUID, name string,
 		}
 	}
 	if inserted == 0 {
-		return nil, errors.New("a self-assessment needs at least one result")
+		return nil, ErrAssessmentNoResults
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err

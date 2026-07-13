@@ -7,9 +7,12 @@ RUN apk add --no-cache git
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/app     ./cmd/app     \
- && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/worker  ./cmd/worker  \
- && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate
+# VERSION comes from the git tag in CI and is what /health reports.
+ARG VERSION=dev
+ENV LDFLAGS="-s -w -X coachwise/src/app/views.Version=${VERSION}"
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /out/app     ./cmd/app     \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /out/worker  ./cmd/worker  \
+ && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="${LDFLAGS}" -o /out/migrate ./cmd/migrate
 
 # ---- runtime stage: slim image with binaries + runtime assets ----
 FROM alpine:3.20
@@ -23,5 +26,6 @@ COPY src/sql /app/src/sql
 COPY openapi.yaml /app/openapi.yaml
 RUN mkdir -p /app/uploads && chown -R app:app /app
 USER app
+ENV GIN_MODE=release
 EXPOSE 8000
 CMD ["/app/bin/app"]

@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 type Media struct {

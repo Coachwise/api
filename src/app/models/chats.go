@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/google/uuid"
 )

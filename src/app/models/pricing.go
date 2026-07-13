@@ -3,7 +3,7 @@ package models
 import (
 	"errors"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 // ErrPriceNotConfigured means no price row exists for the requested currency.

@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 // requireConnection guards direct-message operations: only connected users may

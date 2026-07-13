@@ -13,12 +13,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 func validateExerciseForm(form *ExerciseForm) error {
 	if strings.TrimSpace(form.Name) == "" || strings.TrimSpace(form.Description) == "" {
 		return errors.New("name and description are required")
+	}
+	// The column is varchar(128); without this the overflow reaches Postgres and
+	// comes back as a 500 — and a failed query counts against the circuit breaker.
+	if len(form.Name) > 128 {
+		return errors.New("name cannot be longer than 128 characters")
 	}
 	for _, set := range form.Sets {
 		if set.RepCount != nil && set.Duration != nil {
@@ -66,7 +71,7 @@ func exerciseGroup(router *gin.Engine) {
 			}{}
 		}
 		if err := validateExerciseForm(form); err != nil {
-			AbortServer(c, err)
+			AbortValidation(c, err)
 			return
 		}
 		ex := new(models.Exercise)
@@ -144,7 +149,7 @@ func exerciseGroup(router *gin.Engine) {
 			}{}
 		}
 		if err := validateExerciseForm(form); err != nil {
-			AbortServer(c, err)
+			AbortValidation(c, err)
 			return
 		}
 		utils.Copy(form, ex)

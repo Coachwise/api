@@ -22,6 +22,13 @@ type ConfigType struct {
 		SqlDir     string `mapstructure:"sqldir"`
 		Migrations string `mapstructure:"migrations"`
 	} `mapstructure:"database"`
+	Storage struct {
+		Provider    string   `mapstructure:"provider"`
+		Dir         string   `mapstructure:"dir"`
+		BaseURL     string   `mapstructure:"base_url"`
+		MaxSizeMB   int      `mapstructure:"max_size_mb"`
+		AllowedMIME []string `mapstructure:"allowed_mime"`
+	} `mapstructure:"storage"`
 	CORS struct {
 		AllowedOrigins []string `mapstructure:"allowed_origins"`
 	} `mapstructure:"cors"`

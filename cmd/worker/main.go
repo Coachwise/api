@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 func main() {

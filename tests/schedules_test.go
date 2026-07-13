@@ -224,21 +224,33 @@ func schedulesGroup() {
 
 	Describe("Schedule Update", func() {
 		It("should update schedule status", func() {
-			if scheduleId != "" {
-				w := httptest.NewRecorder()
-				reqBody, _ := json.Marshal(gin.H{
-					"status": "COMPLETED",
-				})
-				req, _ := http.NewRequest("PATCH", fmt.Sprintf("/schedules/%s", scheduleId), bytes.NewBuffer(reqBody))
-				req.Header.Set("Content-Type", "application/json")
-				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
-				router.ServeHTTP(w, req)
+			Expect(scheduleId).NotTo(BeEmpty())
+			w := httptest.NewRecorder()
+			reqBody, _ := json.Marshal(gin.H{
+				"status": "CANCELED",
+			})
+			req, _ := http.NewRequest("PATCH", fmt.Sprintf("/schedules/%s", scheduleId), bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(w, req)
 
-				if w.Code == 200 {
-					body := decodeBody(w.Body)
-					Expect(body["status"]).To(Equal("COMPLETED"))
-				}
-			}
+			Expect(w.Code).To(Equal(200))
+			body := decodeBody(w.Body)
+			Expect(body["status"]).To(Equal("CANCELED"))
+		})
+
+		// plan_schedule_status only has ACTIVE and CANCELED. An unknown value used
+		// to reach Postgres and come back as a 500.
+		It("should reject a status outside the enum", func() {
+			Expect(scheduleId).NotTo(BeEmpty())
+			w := httptest.NewRecorder()
+			reqBody, _ := json.Marshal(gin.H{"status": "COMPLETED"})
+			req, _ := http.NewRequest("PATCH", fmt.Sprintf("/schedules/%s", scheduleId), bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(w, req)
+
+			Expect(w.Code).To(Equal(400))
 		})
 
 		It("should update schedule notes", func() {

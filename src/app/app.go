@@ -4,9 +4,10 @@ import (
 	"coachwise/src/app/views"
 	"coachwise/src/app/ws"
 	"coachwise/src/config"
+	"coachwise/src/logger"
+	"coachwise/src/storage"
 	"context"
 	"fmt"
-	"coachwise/src/logger"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,12 +36,17 @@ func Init() *gin.Engine {
 		logger.Errorf("could not resolve OpenAPI path %s: %v", openAPIPath, err)
 	}
 
-	// Ensure uploads directory exists and serve it statically
-	uploadDir := filepath.Join(".", "uploads")
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		logger.Fatalf("failed to create upload directory: %v", err)
+	// Serve the local storage backend. A remote backend (S3/CDN) serves its own
+	// files, so there is nothing to mount.
+	if dir := storage.LocalDir(); dir != "" {
+		router.Use(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, "/uploads/") {
+				c.Header("X-Content-Type-Options", "nosniff")
+			}
+			c.Next()
+		})
+		router.Static("/uploads", dir)
 	}
-	router.Static("/uploads", uploadDir)
 
 	// Realtime refetch-signal socket. Registered BEFORE the CORS/2s-timeout
 	// middleware below so this long-lived connection isn't killed after 2s.

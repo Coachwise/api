@@ -3,7 +3,7 @@ package models
 import (
 	"context"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"coachwise/src/payments"
 

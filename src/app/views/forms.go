@@ -173,7 +173,9 @@ type PlanScheduleCreateForm struct {
 }
 
 type PlanScheduleUpdateForm struct {
-	Status *string `json:"status"`
+	// Status must be one of the plan_schedule_status enum values; anything else
+	// is rejected here rather than blowing up in Postgres.
+	Status *string `json:"status" binding:"omitempty,oneof=ACTIVE CANCELED"`
 	Notes  *string `json:"notes"`
 }
 

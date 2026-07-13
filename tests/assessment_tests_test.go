@@ -56,7 +56,9 @@ func assessmentTestsGroup() {
 			makeCoach(coachID)
 			exID = createExercise(coachToken, "Bench Press")
 			exID2 = createExercise(coachToken, "Pull Up")
-			exID3 = createExercise(athleteToken, "20mm Hang")
+			// Building the library is coach-only; an athlete's personal protocol
+			// draws on a public exercise, the same as it does in the app.
+			exID3 = createExercise(coachToken, "20mm Hang")
 			Expect(coachID).NotTo(BeEmpty())
 			Expect(exID).NotTo(BeEmpty())
 		})

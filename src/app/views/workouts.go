@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -66,6 +66,7 @@ var _ = Describe("coachwise Test Suite", func() {
 	Context("Media", mediaGroup)
 	Context("Messages", messagesGroup)
 	Context("Edge Cases", edgeCasesGroup)
+	Context("Resilience", resilienceGroup)
 })
 
 func init() {

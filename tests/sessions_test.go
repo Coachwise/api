@@ -40,8 +40,9 @@ var sessionsGroup = func() {
 			json.NewDecoder(registerResp.Body).Decode(&registerResult)
 			userID := registerResult["id"].(string)
 
-			// Verify user directly (skip OTP for testing)
-			db.Exec("UPDATE users SET status = 'ACTIVE' WHERE id = $1", userID)
+			// Verify user directly (skip OTP for testing). They also build the
+			// exercise this suite trains on, which is coach-only.
+			db.Exec("UPDATE users SET status = 'ACTIVE', is_coach = true WHERE id = $1", userID)
 
 			// Login
 			loginPayload := gin.H{

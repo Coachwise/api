@@ -16,6 +16,7 @@ package main
 
 import (
 	"coachwise/src/config"
+	"coachwise/src/storage"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -47,6 +48,7 @@ func main() {
 	seedDataDir = *dir
 
 	config.Init("config.yml")
+	storage.Init()
 
 	db, err := sql.Open("postgres", config.Config.Database.URL)
 	if err != nil {

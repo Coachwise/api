@@ -1,3 +1,7 @@
 *config.yml
+# The test config holds no secrets — just the throwaway test database — and CI
+# needs it to run the suite.
+!test.config.yml
 uploads/
+uploads_test/
 tmp/

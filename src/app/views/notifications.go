@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 // sp returns a pointer to s (for optional notification entity_type/args).

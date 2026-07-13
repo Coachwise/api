@@ -7,9 +7,10 @@ import (
 	"coachwise/src/events"
 	"coachwise/src/payments"
 	"coachwise/src/sms"
+	"coachwise/src/storage"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 	events.Connect(config.Config.Nats.URL)
 	payments.Init()
 	sms.Init()
+	storage.Init()
 	ws.Start()
 
 	app.Serve()

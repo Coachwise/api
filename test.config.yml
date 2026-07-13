@@ -1,0 +1,13 @@
+secret: test
+port: 3000
+public_url: "http://localhost:3000"
+discord:
+  application_webhook: ""
+database:
+  url: postgres://coachwise:passwd@localhost:5432/coachwise_test?sslmode=disable
+  sqldir: src/sql
+  migrations: src/sql/migrations
+storage:
+  provider: local
+  dir: ./uploads_test
+  max_size_mb: 10

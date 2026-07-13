@@ -1,27 +1,16 @@
 package main
 
 import (
-	"coachwise/src/config"
+	"coachwise/src/storage"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
+	"mime"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 )
-
-// mediaBaseURL mirrors views.resolveMediaURL for seed-time (no request context):
-// all media is stored with an absolute URL, so seeded media must be too or the
-// frontend resolves it against its own origin. Uses media_base_url, else
-// public_url; relative only if neither is set.
-func mediaBaseURL() string {
-	if b := strings.TrimSuffix(config.Config.MediaBaseURL, "/"); b != "" {
-		return b
-	}
-	return strings.TrimSuffix(config.Config.PublicURL, "/")
-}
 
 // System climbing exercise library seeder. It is DATA-DRIVEN: the content lives
 // under <seedDataDir>/exercises/ (outside this repo), not compiled in, so the
@@ -104,11 +93,6 @@ func seedExercises(db *sql.DB) error {
 	}
 	sort.Strings(files)
 
-	uploads := filepath.Join("uploads", "exercises")
-	if err := os.MkdirAll(uploads, 0o755); err != nil {
-		return fmt.Errorf("mkdir uploads: %w", err)
-	}
-
 	count := 0
 	for _, f := range files {
 		var e exerciseFile
@@ -120,9 +104,9 @@ func seedExercises(db *sql.DB) error {
 			return fmt.Errorf("exercise %s: unknown category %q", e.Slug, e.Category)
 		}
 
-		// Copy the animation into the served uploads dir, link a media row.
-		// The extension is preserved, so switching a slug from .svg to .mp4/.webp/
-		// .gif later needs no code change — just drop the new file + reseed.
+		// Store the animation through the storage service, link a media row. The
+		// extension is preserved, so switching a slug from .svg to .mp4/.webp/.gif
+		// later needs no code change — just drop the new file + reseed.
 		var mediaID any
 		if e.Media != "" {
 			ext := filepath.Ext(e.Media)
@@ -130,10 +114,10 @@ func seedExercises(db *sql.DB) error {
 				ext = ".svg"
 			}
 			name := e.Slug + ext
-			if err := copyFile(filepath.Join(base, "media", e.Media), filepath.Join(uploads, name)); err != nil {
+			url, err := putMedia(filepath.Join(base, "media", e.Media), name)
+			if err != nil {
 				return fmt.Errorf("media %s: %w", e.Slug, err)
 			}
-			url := mediaBaseURL() + "/uploads/exercises/" + name
 			var id string
 			if err := db.QueryRow(`
 				INSERT INTO media (url, filename)
@@ -228,17 +212,26 @@ func readJSON(path string, v any) error {
 	return json.Unmarshal(b, v)
 }
 
-func copyFile(src, dst string) error {
+// putMedia stores a seed file under exercises/<name> and returns its URL —
+// through the same service the upload endpoint uses, so seeded and uploaded
+// media are addressed identically wherever storage happens to live.
+func putMedia(src, name string) (string, error) {
+	ctx := context.Background()
+
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer in.Close()
-	out, err := os.Create(dst)
+
+	info, err := in.Stat()
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+
+	key := storage.KeyNamed(storage.KindExercise, name)
+	if err := storage.Get().Put(ctx, key, in, info.Size(), mime.TypeByExtension(filepath.Ext(name))); err != nil {
+		return "", err
+	}
+	return storage.Get().URL(key), nil
 }

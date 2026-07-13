@@ -6,13 +6,14 @@ import (
 	"coachwise/src/events"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx/types"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 // applyPackageForm copies form fields onto a package model, normalizing the
@@ -311,6 +312,10 @@ func packagesGroup(router *gin.Engine) {
 		// Enroll the user as a client (creates the subscription) and assign the
 		// package's bundled plans to them.
 		sub, err := models.EnrollClient(ctx, id, user.ID, form.UserID)
+		if errors.Is(err, models.ErrClientHasPackage) {
+			AbortMsg(c, CodeConflict, err.Error())
+			return
+		}
 		if err != nil {
 			AbortServer(c, err)
 			return

@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 // emptyToNil returns nil for a blank string so we store NULL rather than "".

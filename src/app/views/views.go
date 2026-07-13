@@ -7,6 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Version is the release this binary was built from. CI sets it from the git tag
+// (-ldflags "-X coachwise/src/app/views.Version=1.2.0"); a local build says dev.
+var Version = "dev"
+
 func Init(r *gin.Engine) {
 
 	r.GET("health", health)
@@ -37,7 +41,7 @@ func health(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"status":    "ok",
 		"service":   "coachwise-api",
-		"version":   "1.0.0",
+		"version":   Version,
 		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }

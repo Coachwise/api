@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 )
 
 func plansGroup(router *gin.Engine) {

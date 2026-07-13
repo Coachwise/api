@@ -5,11 +5,12 @@ import (
 	"coachwise/src/app/models"
 	"coachwise/src/events"
 	"context"
+	"errors"
 	"net/http"
 
+	"coachwise/src/database"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	database "github.com/socious-io/pkg_database"
 )
 
 func testsGroup(router *gin.Engine) {
@@ -163,6 +164,10 @@ func testsGroup(router *gin.Engine) {
 		}
 		ctx := c.MustGet("ctx").(context.Context)
 		tr, err := models.CreateSelfAssessment(ctx, user.ID, form.Name, form.Records)
+		if errors.Is(err, models.ErrAssessmentNoResults) {
+			AbortMsg(c, CodeValidation, err.Error())
+			return
+		}
 		if err != nil {
 			AbortServer(c, err)
 			return

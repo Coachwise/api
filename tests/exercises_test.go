@@ -17,6 +17,13 @@ func exerciseGroup() {
 	var exerciseId string
 	var publicExerciseId string
 
+	// Building an exercise is coach-only. The suite's shared user registers as a
+	// plain athlete, so promote them once — otherwise every spec here 403s and
+	// takes plans, sessions and assessments down with it.
+	BeforeEach(func() {
+		db.MustExec("UPDATE users SET is_coach = true WHERE email = $1", usersData[0]["email"])
+	})
+
 	Describe("Exercise Creation", func() {
 		It("should create exercise with sets", func() {
 			w := httptest.NewRecorder()
@@ -185,7 +192,7 @@ func exerciseGroup() {
 			req, _ := http.NewRequest("GET", "/exercises/00000000-0000-0000-0000-000000000000", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			Expect(w.Code).To(Equal(400))
+			Expect(w.Code).To(Equal(404))
 		})
 
 		It("should fail to get exercise without authentication", func() {
@@ -201,11 +208,10 @@ func exerciseGroup() {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
 
-			if w.Code == 200 {
-				var body []interface{}
-				json.NewDecoder(w.Body).Decode(&body)
-				Expect(len(body)).To(BeNumerically(">=", 2))
-			}
+			Expect(w.Code).To(Equal(200))
+			body := decodeBody(w.Body)
+			Expect(body["total"]).To(BeNumerically(">=", 2))
+			Expect(len(body["items"].([]interface{}))).To(BeNumerically(">=", 2))
 		})
 
 		It("should filter exercises by public status", func() {
@@ -230,11 +236,9 @@ func exerciseGroup() {
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
 
-			if w.Code == 200 {
-				var body []interface{}
-				json.NewDecoder(w.Body).Decode(&body)
-				Expect(len(body)).To(BeNumerically(">=", 1))
-			}
+			Expect(w.Code).To(Equal(200))
+			body := decodeBody(w.Body)
+			Expect(len(body["items"].([]interface{}))).To(BeNumerically(">=", 1))
 		})
 	})
 
@@ -293,7 +297,7 @@ func exerciseGroup() {
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			Expect(w.Code).To(Equal(400))
+			Expect(w.Code).To(Equal(404))
 		})
 
 		It("should fail to update exercise without authentication", func() {
@@ -360,7 +364,7 @@ func exerciseGroup() {
 			req2, _ := http.NewRequest("GET", fmt.Sprintf("/exercises/%s", exerciseId), nil)
 			req2.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w2, req2)
-			Expect(w2.Code).To(Equal(400))
+			Expect(w2.Code).To(Equal(404))
 		})
 
 		It("should fail to delete non-existent exercise", func() {
@@ -368,7 +372,7 @@ func exerciseGroup() {
 			req, _ := http.NewRequest("DELETE", "/exercises/00000000-0000-0000-0000-000000000000", nil)
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
 			router.ServeHTTP(w, req)
-			Expect(w.Code).To(Equal(400))
+			Expect(w.Code).To(Equal(404))
 		})
 
 		It("should fail to delete exercise without authentication", func() {

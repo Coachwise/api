@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx/types"
@@ -30,8 +30,8 @@ type Plan struct {
 	EstimatedSeconds int `db:"estimated_seconds" json:"estimated_seconds"`
 	// User is the plan owner (the coach, for an assigned plan), populated from the
 	// user_id FK via row_to_json. UserJson is auto-unmarshalled into User by
-	// pkg_database (db tag "user" ↔ json tag "user").
-	// json tag must be exactly "user" (no ,omitempty) so pkg_database matches the
+	// godatabase (db tag "user" ↔ json tag "user").
+	// json tag must be exactly "user" (no ,omitempty) so godatabase matches the
 	// UserJson db:"user" field to it and unmarshals the owner into User.
 	User     *User          `db:"-" json:"user"`
 	UserJson types.JSONText `db:"user" json:"-"`

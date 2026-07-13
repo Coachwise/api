@@ -5,6 +5,8 @@
 package errcode
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"coachwise/src/logger"
@@ -142,6 +144,12 @@ func AbortStatus(c *gin.Context, status int, msg string) {
 // AbortServer logs an internal/db error (traceable by method + path) and returns
 // a generic coded response so raw driver/query strings never reach the client.
 func AbortServer(c *gin.Context, err error) {
+	// A lookup that found nothing is not a server fault — it's a 404. Handlers
+	// pass fetch errors straight here, so catching it once covers all of them.
+	if errors.Is(err, sql.ErrNoRows) {
+		Abort(c, CodeNotFound)
+		return
+	}
 	logger.WithFields(logger.Fields{
 		"method": c.Request.Method,
 		"path":   c.Request.URL.Path,

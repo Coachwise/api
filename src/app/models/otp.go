@@ -7,7 +7,7 @@ import (
 	"math/rand/v2"
 	"time"
 
-	database "github.com/socious-io/pkg_database"
+	"coachwise/src/database"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"

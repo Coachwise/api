@@ -2,17 +2,62 @@ name: Build and Deploy
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
+  # Nothing is built and nothing is deployed unless the whole E2E suite passes
+  # against a real Postgres.
+  #
+  # This job MUST stay on a GitHub-hosted runner. The suite drops and recreates
+  # its database on every run, so it needs a throwaway Postgres — the service
+  # container below, inside GitHub's VM. On a self-hosted runner it would find
+  # the server's own Postgres on localhost:5432 and drop a database there.
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: coachwise
+          POSTGRES_PASSWORD: passwd
+          POSTGRES_DB: coachwise_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U coachwise"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./... && go vet ./...
+
+      - name: E2E suite
+        run: go test ./tests -args -c test.config.yml
+
   build:
     name: Build and push image
     runs-on: ubuntu-latest
+    needs: test
     permissions:
       contents: read
       packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
@@ -21,6 +66,19 @@ jobs:
       - name: Set lowercase repository name
         run: |
           echo "REPO_LC=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      # Same rule as the app: a v1.2.0 tag builds 1.2.0; anything else is a
+      # pre-release build stamped with its commit. /health reports this.
+      - name: Compute version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0+${GITHUB_SHA::7}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version $VERSION"
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
@@ -34,8 +92,11 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
           tags: |
             ghcr.io/${{ env.REPO_LC }}:latest
+            ghcr.io/${{ env.REPO_LC }}:${{ steps.version.outputs.version }}
             ghcr.io/${{ env.REPO_LC }}:${{ github.sha }}
 
   deploy:
@@ -59,7 +120,9 @@ jobs:
 
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-            IMAGE=ghcr.io/${{ env.REPO_LC }}:latest
+            # Pin to the exact version built by this run, so a re-deploy can
+            # never pick up a different :latest.
+            IMAGE=ghcr.io/${{ env.REPO_LC }}:${{ needs.build.outputs.version }}
             docker pull "$IMAGE"
 
             mkdir -p /var/lib/coachwise/uploads
@@ -96,3 +159,15 @@ jobs:
 
             docker logout ghcr.io
             docker image prune -f
+
+            # The deploy is only green if the running API reports the version we
+            # just shipped.
+            EXPECTED="${{ needs.build.outputs.version }}"
+            for i in $(seq 1 15); do
+              RUNNING=$(curl -sf http://localhost:8000/health | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || true)
+              [ "$RUNNING" = "$EXPECTED" ] && echo "API is running $RUNNING" && exit 0
+              sleep 2
+            done
+            echo "API did not come up on $EXPECTED (last seen: '${RUNNING:-none}')"
+            docker logs --tail 50 coachwise-api
+            exit 1
