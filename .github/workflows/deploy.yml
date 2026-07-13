@@ -46,6 +46,11 @@ jobs:
       - name: Build
         run: go build ./... && go vet ./...
 
+      # Reports only vulnerabilities we actually reach, so it doesn't cry wolf
+      # over CVEs in packages we merely have in go.mod (x/crypto/ssh, say).
+      - name: Vulnerability check
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
       - name: E2E suite
         run: go test ./tests -args -c test.config.yml
 
