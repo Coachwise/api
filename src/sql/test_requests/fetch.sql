@@ -12,6 +12,7 @@ SELECT tr.*,
                'id', ti.id,
                'exercise_id', ti.exercise_id,
                'exercise_name', e.name,
+               'exercise_name_i18n', e.name_i18n,
                'track_reps', ti.track_reps, 'track_weight', ti.track_weight, 'track_time', ti.track_time,
                'target_value', ti.target_value,
                'item_order', ti.item_order
@@ -23,12 +24,13 @@ SELECT tr.*,
            SELECT jsonb_agg(jsonb_build_object(
                'exercise_id', wl.exercise_id,
                'exercise_name', ex.name,
+               'exercise_name_i18n', ex.name_i18n,
                'reps', wl.reps,
                'weight', wl.weight,
                'duration_seconds', wl.duration_seconds
            ))
            FROM workout_logs wl JOIN exercises ex ON ex.id = wl.exercise_id
-           WHERE wl.test_request_id = tr.id
+           WHERE wl.test_request_id = tr.id AND wl.deleted_at IS NULL
        ), '[]'::jsonb) AS records
 FROM test_requests tr
 LEFT JOIN tests t ON t.id = tr.test_id

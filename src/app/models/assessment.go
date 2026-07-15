@@ -31,6 +31,7 @@ type Test struct {
 	// The owner, as a full user (so assigned athletes see who set the protocol).
 	Coach     *User          `db:"-" json:"coach"`
 	CoachJson types.JSONText `db:"coach" json:"-"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 // TestItemInput is one exercise in a test plus which metrics to measure. An item

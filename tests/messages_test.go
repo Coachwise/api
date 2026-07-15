@@ -31,7 +31,7 @@ var messagesGroup = func() {
 		registerPayloadA := gin.H{
 			"first_name": "MsgA",
 			"last_name":  "Tester",
-			"username":   "msga",
+			"username":   "msgauser",
 			"email":      "msga@test.com",
 			"password":   "Password123!",
 		}
@@ -61,7 +61,7 @@ var messagesGroup = func() {
 		registerPayloadB := gin.H{
 			"first_name": "MsgB",
 			"last_name":  "Tester",
-			"username":   "msgb",
+			"username":   "msgbuser",
 			"email":      "msgb@test.com",
 			"password":   "Password123!",
 		}
@@ -175,7 +175,7 @@ var messagesGroup = func() {
 
 	It("forbids messaging a user you are not connected to", func() {
 		// A fresh user C who has no connection with A.
-		_, userCID := registerVerifiedUser("msgc@test.com", "msgc")
+		_, userCID := registerVerifiedUser("msgc@test.com", "msgcuser")
 
 		sendPayload := gin.H{"recipient_id": userCID, "body": "hello stranger"}
 		body, _ := json.Marshal(sendPayload)

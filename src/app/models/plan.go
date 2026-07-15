@@ -37,6 +37,7 @@ type Plan struct {
 	UserJson types.JSONText `db:"user" json:"-"`
 	// Absorbs the generated tsvector from `SELECT p.*`; not serialized.
 	SearchVector *string `db:"search_vector" json:"-"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 type PlanExercise struct {

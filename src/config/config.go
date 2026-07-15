@@ -36,6 +36,9 @@ type ConfigType struct {
 		// ApplicationWebhook receives coach-application notifications with the
 		// approve/reject links. When empty, the links are logged instead.
 		ApplicationWebhook string `mapstructure:"application_webhook"`
+		// AlertWebhook receives panics, 5xx responses, failed jobs and app
+		// crashes — the #alert-log channel. When empty, alerts are logged instead.
+		AlertWebhook string `mapstructure:"alert_webhook"`
 	} `mapstructure:"discord"`
 	// Nats is the message queue used to fan events out to consumers (DB-insert
 	// now; push / email / SMS later). When URL is empty the queue is disabled and

@@ -1,1 +1,3 @@
-DELETE FROM plans WHERE id = $1 RETURNING id
+UPDATE plans SET deleted_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id

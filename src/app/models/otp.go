@@ -93,7 +93,9 @@ func NewOTP(ctx context.Context, userID uuid.UUID, perpose string) (*OTP, error)
 		}
 	}
 
-	u, err := GetUser(userID)
+	// Deleted accounts included: sending them a code is exactly how a returning
+	// phone gets its account back.
+	u, err := GetUserAny(userID)
 	if err != nil {
 		return nil, err
 	}

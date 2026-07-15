@@ -3,7 +3,7 @@ SELECT
     COUNT(*) OVER () as total_count
 FROM tags t
 LEFT JOIN workout_logs_tags wlt ON t.id = wlt.tag_id
-LEFT JOIN workout_logs wl ON wlt.workout_log_id = wl.id
+LEFT JOIN workout_logs wl ON wlt.workout_log_id = wl.id AND wl.deleted_at IS NULL
 LEFT JOIN sessions s ON wl.session_id = s.id
 WHERE
     ($1 = '' OR t.search_vector @@ to_tsquery('english',

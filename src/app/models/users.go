@@ -5,27 +5,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jmoiron/sqlx/types"
 	"coachwise/src/database"
+	"github.com/jmoiron/sqlx/types"
 
 	"github.com/google/uuid"
 )
 
 type User struct {
-	ID              uuid.UUID `db:"id" json:"id"`
-	Username        string    `db:"username" json:"username"`
-	Email           string    `db:"email" json:"email"`
-	Password        *string   `db:"password" json:"-"`
-	JobTitle        *string   `db:"job_title" json:"job_title"`
-	Bio             *string   `db:"bio" json:"bio"`
-	FirstName       *string   `db:"first_name" json:"first_name"`
-	LastName        *string   `db:"last_name" json:"last_name"`
-	Phone           *string   `db:"phone" json:"phone"`
-	Website         *string   `db:"website" json:"website"`
-	Instagram       *string   `db:"instagram" json:"instagram"`
+	ID              uuid.UUID  `db:"id" json:"id"`
+	Username        string     `db:"username" json:"username"`
+	Email           string     `db:"email" json:"email"`
+	Password        *string    `db:"password" json:"-"`
+	JobTitle        *string    `db:"job_title" json:"job_title"`
+	Bio             *string    `db:"bio" json:"bio"`
+	FirstName       *string    `db:"first_name" json:"first_name"`
+	LastName        *string    `db:"last_name" json:"last_name"`
+	Phone           *string    `db:"phone" json:"phone"`
+	Website         *string    `db:"website" json:"website"`
+	Instagram       *string    `db:"instagram" json:"instagram"`
 	Birthday        *time.Time `db:"birthday" json:"birthday"`
-	Status          string    `db:"status" json:"status"`
-	PasswordExpired bool      `db:"password_expired" json:"password_expired"`
+	Status          string     `db:"status" json:"status"`
+	PasswordExpired bool       `db:"password_expired" json:"password_expired"`
 
 	ProUntil *time.Time `db:"pro_until" json:"pro_until,omitempty"`
 	Pro      bool       `db:"pro" json:"pro"`
@@ -43,7 +43,8 @@ type User struct {
 	Avatar     *Media         `db:"-" json:"avatar"`
 	AvatarJson types.JSONText `db:"avatar" json:"-"`
 	// Absorbs the generated tsvector from `SELECT u.*`; not serialized.
-	SearchVector *string `db:"search_vector" json:"-"`
+	SearchVector *string    `db:"search_vector" json:"-"`
+	DeletedAt    *time.Time `db:"deleted_at" json:"-"`
 }
 
 func (User) TableName() string {
@@ -180,10 +181,38 @@ func GetUserByPhone(phone string) (*User, error) {
 	return u, nil
 }
 
+// GetUserByPhoneAny finds an account by phone even when it's deleted. Only the
+// OTP flow may use it: a deleted account still needs to receive its code (and a
+// second row can't be created for a number the first one still holds), but it
+// stays deleted until the code is verified.
+func GetUserByPhoneAny(phone string) (*User, error) {
+	u := new(User)
+	if err := database.Get(u, "users/fetch_by_phone_any", phone); err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+// Revive undeletes the account. Verifying an OTP is what earns it back: proving
+// you control the number is the only way in.
+func (u *User) Revive(ctx context.Context) error {
+	rows, err := database.Query(ctx, "users/revive", u.ID)
+	if err != nil {
+		return err
+	}
+	rows.Close()
+	u.DeletedAt = nil
+	return nil
+}
+
 // GetOrCreatePhoneUser returns the account for a phone, creating a passwordless
-// one (placeholder email, auto username, INACTIVE) on first use.
+// one (placeholder email, auto username, INACTIVE) on first use. A deleted
+// account is returned as-is — still deleted; verifying the code revives it.
 func GetOrCreatePhoneUser(ctx context.Context, phone string) (*User, error) {
 	if u, err := GetUserByPhone(phone); err == nil {
+		return u, nil
+	}
+	if u, err := GetUserByPhoneAny(phone); err == nil {
 		return u, nil
 	}
 	username := "u" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
@@ -242,4 +271,14 @@ func DeleteUser(ctx context.Context, id uuid.UUID) error {
 	}
 	rows.Close()
 	return nil
+}
+
+// GetUserAny fetches a user by id even when the account is deleted. Only the OTP
+// flow needs this — everything else reads through GetUser, which hides them.
+func GetUserAny(id uuid.UUID) (*User, error) {
+	u := new(User)
+	if err := database.Get(u, "users/fetch_any", id); err != nil {
+		return nil, err
+	}
+	return u, nil
 }

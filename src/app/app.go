@@ -18,7 +18,13 @@ import (
 )
 
 func Init() *gin.Engine {
-	router := gin.Default()
+	// gin.New(), not gin.Default(): Default installs gin's own Recovery, which
+	// would recover every panic before views.Alerts() could see it — and a panic
+	// nobody is told about is the whole problem we are solving.
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(views.RequestID())
+	router.Use(views.Alerts())
 	router.RedirectTrailingSlash = false
 
 	// Serve OpenAPI spec for Swagger UI/clients (configurable path, default: openapi.yaml in repo root)
@@ -71,7 +77,16 @@ func Init() *gin.Engine {
 	router.Use(cors.New(corsConfig))
 
 	router.Use(func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		// The clock starts when the headers arrive, before the body is read. Two
+		// seconds is plenty for a JSON request, but an upload spends most of that
+		// budget just receiving the file — on a phone connection the deadline
+		// would expire before the handler ever reached the database.
+		timeout := 2 * time.Second
+		if strings.HasPrefix(c.ContentType(), "multipart/form-data") {
+			timeout = 60 * time.Second
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 		c.Set("ctx", ctx)
 		c.Next()

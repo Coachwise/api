@@ -40,6 +40,7 @@ type Seeder struct {
 var registry = []Seeder{
 	{"users", seedUsers},
 	{"exercises", seedExercises},
+	{"demo", seedDemo},
 }
 
 func main() {

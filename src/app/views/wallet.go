@@ -321,6 +321,8 @@ func payoutError(c *gin.Context, err error) {
 	switch err {
 	case models.ErrPayoutExceeds:
 		Abort(c, CodePayoutExceedsAvailable)
+	case models.ErrNegativeBalance:
+		Abort(c, CodeBalanceNegative)
 	case models.ErrInvalidAmount:
 		Abort(c, CodeBadRequest)
 	default:

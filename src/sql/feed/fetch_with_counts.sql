@@ -12,4 +12,4 @@ LEFT JOIN LATERAL (
 LEFT JOIN LATERAL (
     SELECT COUNT(*) FROM feed_comments fc WHERE fc.feed_id = f.id
 ) AS comments(count) ON TRUE
-WHERE f.id = $1 AND (f.visibility = 'PUBLIC' OR f.user_id = $2);
+WHERE f.id = $1 AND f.deleted_at IS NULL AND (f.visibility = 'PUBLIC' OR f.user_id = $2);

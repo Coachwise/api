@@ -40,6 +40,7 @@ type CoachPackage struct {
 	// Hydrated in fetch.sql (no N+1).
 	PlanCount int            `db:"plan_count" json:"plan_count"`
 	Plans     types.JSONText `db:"plans" json:"plans"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 func (CoachPackage) TableName() string {

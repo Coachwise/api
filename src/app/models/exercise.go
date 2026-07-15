@@ -35,6 +35,7 @@ type Exercise struct {
 	MediaJson types.JSONText `db:"media" json:"-"`
 	// Absorbs the generated tsvector column from `SELECT e.*`; not serialized.
 	SearchVector *string `db:"search_vector" json:"-"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 type Set struct {

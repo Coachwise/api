@@ -25,4 +25,4 @@ SELECT e.*,
   END AS media
 FROM exercises e
 LEFT JOIN media m ON e.media_id = m.id
-WHERE e.id IN (?)
+WHERE e.id IN (?) AND e.deleted_at IS NULL

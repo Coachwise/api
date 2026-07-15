@@ -4,6 +4,7 @@
 SELECT DISTINCT ON (wl.exercise_id)
        wl.exercise_id,
        e.name AS exercise_name,
+       e.name_i18n AS exercise_name_i18n,
        wl.weight AS best_weight,
        wl.reps AS best_reps,
        wl.duration_seconds AS best_time
@@ -11,6 +12,7 @@ FROM workout_logs wl
 JOIN test_requests tr ON tr.id = wl.test_request_id
 JOIN exercises e ON e.id = wl.exercise_id
 WHERE tr.athlete_id = $1 AND tr.status IN ('SUBMITTED', 'SEEN')
+  AND wl.deleted_at IS NULL AND e.deleted_at IS NULL
 ORDER BY wl.exercise_id,
          wl.weight DESC NULLS LAST,
          wl.reps DESC NULLS LAST,

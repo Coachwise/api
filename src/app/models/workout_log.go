@@ -32,6 +32,7 @@ type WorkoutLog struct {
 	LoggedAt        time.Time  `db:"logged_at" json:"-"`
 	CreatedAt       time.Time  `db:"created_at" json:"created_at"`
 	Tags            []Tag      `db:"-" json:"tags"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 func (WorkoutLog) TableName() string {

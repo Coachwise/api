@@ -58,6 +58,9 @@ const (
 	CodeUnsupportedCurrency    ErrCode = 1306
 	CodeNoProvider             ErrCode = 1307
 	CodePayoutAccountMissing   ErrCode = 1308
+	// The coach owes money back: a refund clawed back more than was left in the
+	// wallet. Withdrawals wait until that's settled.
+	CodeBalanceNegative ErrCode = 1309
 )
 
 type meta struct {
@@ -101,6 +104,7 @@ var codeMeta = map[ErrCode]meta{
 	CodeUnsupportedCurrency:    {http.StatusBadRequest, "Unsupported currency"},
 	CodeNoProvider:             {http.StatusBadRequest, "Payment method not available"},
 	CodePayoutAccountMissing:   {http.StatusBadRequest, "Set up a payout account first"},
+	CodeBalanceNegative:        {http.StatusBadRequest, "Your balance is negative after a refund; it must be settled before a payout"},
 }
 
 var statusCode = map[int]ErrCode{

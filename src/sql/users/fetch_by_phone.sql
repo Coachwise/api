@@ -1,1 +1,1 @@
-SELECT * FROM users WHERE phone = $1 LIMIT 1
+SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL LIMIT 1

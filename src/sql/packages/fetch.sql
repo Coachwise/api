@@ -7,4 +7,4 @@ SELECT cp.*,
            WHERE j.package_id = cp.id
        ), '[]'::jsonb) AS plans
 FROM coach_packages cp
-WHERE cp.id IN (?)
+WHERE cp.id IN (?) AND cp.deleted_at IS NULL

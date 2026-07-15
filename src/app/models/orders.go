@@ -33,10 +33,15 @@ type Order struct {
 	Subtotal       int64      `db:"subtotal" json:"subtotal"`
 	DiscountAmount int64      `db:"discount_amount" json:"discount_amount"`
 	FeeAmount      int64      `db:"fee_amount" json:"fee_amount"`
-	Total          int64      `db:"total" json:"total"`
-	Status         string     `db:"status" json:"status"`
-	CreatedAt      time.Time  `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at"`
+	// How the buyer's money was split, so a refund can take it back from the same
+	// places it went: CoachNet to the coach, FeeAmount + ProAmount to us.
+	CoachNet       int64     `db:"coach_net" json:"coach_net"`
+	ProAmount      int64     `db:"pro_amount" json:"pro_amount"`
+	Total          int64     `db:"total" json:"total"`
+	RefundedAmount int64     `db:"refunded_amount" json:"refunded_amount"`
+	Status         string    `db:"status" json:"status"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Payment is a money-in event (top-up).
@@ -121,7 +126,8 @@ func PurchasePro(ctx context.Context, buyerID uuid.UUID, currency, provider stri
 	order := new(Order)
 	if err := txOne(ctx, tx, order, "orders/create",
 		buyerID, "PRO", currency, noUUID, noUUID, months,
-		quote.UnitAmount, quote.Subtotal, quote.DiscountAmount, quote.FeeAmount, quote.Total, "PAID"); err != nil {
+		quote.UnitAmount, quote.Subtotal, quote.DiscountAmount, quote.FeeAmount,
+		int64(0), quote.Total, quote.Total, "PAID"); err != nil {
 		return nil, err
 	}
 	if err := addEntry(ctx, tx, buyerWallet.ID, currency, -quote.Total, "PURCHASE", time.Now().UTC(), order.ID, "Pro membership"); err != nil {
@@ -194,7 +200,8 @@ func PurchasePackage(ctx context.Context, buyerID, packageID uuid.UUID, currency
 	order := new(Order)
 	if err := txOne(ctx, tx, order, "orders/create",
 		buyerID, "PACKAGE", currency, pkg.CoachID, pkg.ID, quote.ProMonths,
-		quote.UnitAmount, quote.Subtotal, quote.DiscountAmount, quote.FeeAmount, quote.Total, "PAID"); err != nil {
+		quote.UnitAmount, quote.Subtotal, quote.DiscountAmount, quote.FeeAmount,
+		quote.CoachNet, quote.ProAmount, quote.Total, "PAID"); err != nil {
 		return nil, err
 	}
 	if err := addEntry(ctx, tx, buyerWallet.ID, currency, -quote.Total, "PURCHASE", time.Now().UTC(), order.ID, "Package: "+pkg.Name); err != nil {
@@ -242,7 +249,8 @@ func PurchasePackage(ctx context.Context, buyerID, packageID uuid.UUID, currency
 
 	// Post-commit: enroll the client (+ assign the package's plans). A repeat
 	// purchase (already enrolled) is a renewal — not an error.
-	if _, err := EnrollClient(ctx, packageID, pkg.CoachID, buyerID); err != nil && err != ErrClientHasPackage {
+	endsAt := time.Now().UTC().AddDate(0, months, 0)
+	if _, err := EnrollClient(ctx, packageID, pkg.CoachID, buyerID, endsAt, &order.ID); err != nil && err != ErrClientHasPackage {
 		logger.Errorf("purchase %s: enroll client failed: %v", order.ID, err)
 	}
 	return order, nil

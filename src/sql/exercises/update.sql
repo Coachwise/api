@@ -5,5 +5,5 @@ UPDATE exercises SET
     sport_type=CASE WHEN $5::text = '' THEN sport_type ELSE $5::exercise_sport_type END,
     media_id=$6,
     updated_at=NOW()
-WHERE id=$1
+WHERE id=$1 AND deleted_at IS NULL
 RETURNING *

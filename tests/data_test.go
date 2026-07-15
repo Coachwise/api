@@ -10,7 +10,7 @@ var (
 		{
 			"first_name": "TestName",
 			"last_name":  "TestLastName",
-			"username":   "test",
+			"username":   "testuser",
 			"email":      "test@test.com",
 			"password":   "test123456",
 		},

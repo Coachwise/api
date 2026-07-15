@@ -9,5 +9,5 @@ SELECT p.*,
        row_to_json(owner.*) AS "user"
 FROM plans p
 LEFT JOIN users owner ON owner.id = p.user_id
-WHERE p.id IN (?)
+WHERE p.id IN (?) AND p.deleted_at IS NULL
 ORDER BY p.created_at DESC

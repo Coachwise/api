@@ -5,6 +5,7 @@
 package main
 
 import (
+	"coachwise/src/alert"
 	"coachwise/src/config"
 	"coachwise/src/events"
 	"coachwise/src/sms"
@@ -27,10 +28,12 @@ func main() {
 		Timeout:     5 * time.Second,
 	})
 
+	alert.Init(config.Config.Discord.AlertWebhook, envName())
 	events.Connect(config.Config.Nats.URL)
 	sms.Init()
 	events.StartNotificationConsumer()
 	events.StartSMSConsumer()
+	events.StartAlertConsumer()
 	log.Println("worker: running (Ctrl+C to stop)")
 
 	// Block until interrupted.
@@ -38,4 +41,13 @@ func main() {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig
 	log.Println("worker: shutting down")
+}
+
+// envName labels alerts so a failure on a dev box is never mistaken for one in
+// production.
+func envName() string {
+	if config.Config.Debug {
+		return "dev"
+	}
+	return "production"
 }

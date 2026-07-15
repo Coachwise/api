@@ -3,7 +3,8 @@
 -- plans/fetch on the ids.
 SELECT p.id, COUNT(*) OVER () AS total_count
 FROM plans p
-WHERE (
+WHERE p.deleted_at IS NULL
+  AND (
         p.public = true
         OR (NOT $2::boolean AND (
              p.user_id = $1

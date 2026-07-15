@@ -35,6 +35,7 @@ func Init(r *gin.Engine) {
 	feedsGroup(r)
 	mediaGroup(r)
 	messageGroup(r)
+	telemetryGroup(r)
 }
 
 func health(ctx *gin.Context) {

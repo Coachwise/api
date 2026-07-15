@@ -310,8 +310,9 @@ func packagesGroup(router *gin.Engine) {
 			return
 		}
 		// Enroll the user as a client (creates the subscription) and assign the
-		// package's bundled plans to them.
-		sub, err := models.EnrollClient(ctx, id, user.ID, form.UserID)
+		// package's bundled plans to them. No purchase behind it, so no order and
+		// the default term.
+		sub, err := models.EnrollClient(ctx, id, user.ID, form.UserID, models.DefaultTermFrom(time.Now()), nil)
 		if errors.Is(err, models.ErrClientHasPackage) {
 			AbortMsg(c, CodeConflict, err.Error())
 			return
@@ -344,12 +345,32 @@ func packagesGroup(router *gin.Engine) {
 			AbortStatus(c, http.StatusNotFound, "package not found")
 			return
 		}
-		if err := models.UnsubscribeClient(ctx, id, clientID); err != nil {
+		sub, err := models.CancelSubscription(ctx, id, clientID, user.ID, c.Query("reason"))
+		if err != nil {
+			if errors.Is(err, models.ErrSubscriptionNotFound) {
+				AbortStatus(c, http.StatusNotFound, "subscription not found")
+				return
+			}
 			AbortServer(c, err)
 			return
 		}
-		events.EmitNotification(clientID, &user.ID, models.NotifPackageRemoved, sp("package"), &id, map[string]any{"name": pkg.Name})
-		c.Status(http.StatusOK)
+
+		// Dropping a paying client costs the coach the part of the term the client
+		// won't get. A subscription the coach handed over for free has nothing to
+		// refund, which is not an error.
+		data := map[string]any{"name": pkg.Name}
+		refund, err := models.RefundCancellation(ctx, sub)
+		if err != nil && !errors.Is(err, models.ErrNothingToRefund) {
+			AbortServer(c, err)
+			return
+		}
+		if refund != nil {
+			data["refund_amount"] = refund.Amount
+			data["currency"] = refund.Currency
+		}
+
+		events.EmitNotification(clientID, &user.ID, models.NotifPackageRemoved, sp("package"), &id, data)
+		c.JSON(http.StatusOK, gin.H{"subscription": sub, "refund": refund})
 	})
 
 	// Athlete-driven enrollment: the current user subscribes to an active package.
@@ -374,7 +395,7 @@ func packagesGroup(router *gin.Engine) {
 			Abort(c, CodeSelfAction)
 			return
 		}
-		sub, err := models.EnrollClient(ctx, id, pkg.CoachID, user.ID)
+		sub, err := models.EnrollClient(ctx, id, pkg.CoachID, user.ID, models.DefaultTermFrom(time.Now()), nil)
 		if err != nil {
 			AbortServer(c, err)
 			return

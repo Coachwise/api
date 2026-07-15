@@ -15,8 +15,8 @@ SELECT
     SUM(wl.weight * wl.reps) FILTER (WHERE wl.completed = true) as total_volume,
     COUNT(*) OVER() as total_count
 FROM sessions s
-LEFT JOIN plans p ON p.id = s.plan_id
-LEFT JOIN workout_logs wl ON wl.session_id = s.id
+LEFT JOIN plans p ON p.id = s.plan_id AND p.deleted_at IS NULL
+LEFT JOIN workout_logs wl ON wl.session_id = s.id AND wl.deleted_at IS NULL
 WHERE s.user_id = $1
 GROUP BY DATE(s.started_at)
 ORDER BY DATE(s.started_at) DESC

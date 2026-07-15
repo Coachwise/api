@@ -69,6 +69,32 @@ func authGroup() {
 			router.ServeHTTP(w, req)
 			Expect(w.Code).To(Equal(400))
 		})
+
+		// A username is 5–24 letters and digits, nothing else.
+		DescribeTable("should reject an invalid username",
+			func(username string) {
+				w := httptest.NewRecorder()
+				reqBody, _ := json.Marshal(gin.H{
+					"first_name": "Bad",
+					"last_name":  "Name",
+					"username":   username,
+					"email":      fmt.Sprintf("%s@test.com", "bad"),
+					"password":   "Password123!",
+				})
+				req, _ := http.NewRequest("POST", "/auth/register", bytes.NewBuffer(reqBody))
+				req.Header.Set("Content-Type", "application/json")
+				router.ServeHTTP(w, req)
+
+				Expect(w.Code).To(Equal(400))
+				Expect(decodeBody(w.Body)["field"]).To(Equal("username"))
+			},
+			Entry("too short", "abcd"),
+			Entry("too long", "abcdefghijklmnopqrstuvwxy"),
+			Entry("with a space", "bad name"),
+			Entry("with punctuation", "bad.name"),
+			Entry("with an underscore", "bad_name"),
+			Entry("with an emoji", "névé🧊"),
+		)
 	})
 
 	Describe("OTP Verification", func() {

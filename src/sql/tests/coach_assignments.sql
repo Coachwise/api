@@ -27,7 +27,7 @@ SELECT x.* FROM (
     JOIN tests t ON t.id = asg.test_id
     JOIN users a ON a.id = asg.athlete_id
     LEFT JOIN media m ON m.id = a.avatar_id
-    WHERE asg.coach_id = $1
+    WHERE asg.coach_id = $1 AND t.deleted_at IS NULL
     ORDER BY asg.test_id, asg.athlete_id, asg.created_at DESC
 ) x
 ORDER BY x.last_run_at DESC NULLS LAST, x.assigned_at DESC

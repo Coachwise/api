@@ -44,6 +44,7 @@ const (
 	CodeUnsupportedCurrency    = errcode.CodeUnsupportedCurrency
 	CodeNoProvider             = errcode.CodeNoProvider
 	CodePayoutAccountMissing   = errcode.CodePayoutAccountMissing
+	CodeBalanceNegative        = errcode.CodeBalanceNegative
 )
 
 var (

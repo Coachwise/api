@@ -3,6 +3,7 @@ package tests_test
 import (
 	"coachwise/src/app"
 	"coachwise/src/config"
+	"coachwise/src/payments"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -67,6 +68,8 @@ var _ = Describe("coachwise Test Suite", func() {
 	Context("Messages", messagesGroup)
 	Context("Edge Cases", edgeCasesGroup)
 	Context("Resilience", resilienceGroup)
+	Context("SoftDelete", softDeleteGroup)
+	Context("Refunds", refundGroup)
 })
 
 func init() {
@@ -187,6 +190,11 @@ func setupTestEnvironment() (*sqlx.DB, *gin.Engine) {
 		log.Fatal(err)
 	}
 	log.Println("Migration done !")
+	// The purchase flow needs a payment gateway; without this the registry is
+	// empty and every buy fails with "payment method not available". Config has
+	// none, so this registers the stub that auto-succeeds.
+	payments.Init()
+
 	// Step 6: Initialize router
 	router := app.Init()
 	return db, router

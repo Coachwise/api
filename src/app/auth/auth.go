@@ -14,9 +14,10 @@ type RegisterForm struct {
 	FirstName *string `json:"first_name" binding:"omitempty"`
 	LastName  *string `json:"last_name" binding:"omitempty"`
 	FullName  *string `json:"full_name" binding:"required_without=FirstName"`
-	Username  *string `json:"username"`
-	Email     string  `json:"email" binding:"required,email"`
-	Password  *string `json:"password" binding:"required,min=8"`
+	// 5–24 letters and digits. Same rule wherever a username is accepted.
+	Username *string `json:"username" binding:"omitempty,min=5,max=24,alphanum"`
+	Email    string  `json:"email" binding:"required,email"`
+	Password *string `json:"password" binding:"required,min=8"`
 }
 
 type LoginForm struct {
@@ -50,7 +51,7 @@ type PhoneVerifyForm struct {
 
 type PreRegisterForm struct {
 	Email    *string `json:"email" binding:"omitempty,email"`
-	Username *string `json:"username"`
+	Username *string `json:"username" binding:"omitempty,min=5,max=24,alphanum"`
 }
 
 type NormalPasswordChangeForm struct {

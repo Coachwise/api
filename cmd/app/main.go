@@ -1,6 +1,7 @@
 package main
 
 import (
+	"coachwise/src/alert"
 	"coachwise/src/app"
 	"coachwise/src/app/ws"
 	"coachwise/src/config"
@@ -26,6 +27,9 @@ func main() {
 	// The API PUBLISHES events; the `cmd/worker` service consumes them. It also
 	// runs the realtime hub: it subscribes to refetch signals off the bus and
 	// pushes them to connected websockets.
+	// The sink is initialised here too, not just in the worker: when the bus is
+	// down EmitAlert delivers inline from this process.
+	alert.Init(config.Config.Discord.AlertWebhook, envName())
 	events.Connect(config.Config.Nats.URL)
 	payments.Init()
 	sms.Init()
@@ -33,4 +37,13 @@ func main() {
 	ws.Start()
 
 	app.Serve()
+}
+
+// envName labels alerts so a panic from a dev box is never mistaken for one from
+// production.
+func envName() string {
+	if config.Config.Debug {
+		return "dev"
+	}
+	return "production"
 }

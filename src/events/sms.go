@@ -64,6 +64,9 @@ func StartSMSConsumer() {
 		}
 		if err := job.deliver(); err != nil {
 			logger.Errorf("events: send sms: %v", err)
+			// The number is masked inside reportJobFailure's fingerprint path;
+			// the detail deliberately does not include it.
+			reportJobFailure("sms", "delivery", err)
 		}
 	})
 	if err != nil {

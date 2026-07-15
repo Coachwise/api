@@ -3,6 +3,8 @@ port: 3000
 public_url: "http://localhost:3000"
 discord:
   application_webhook: ""
+  # #alert-log: panics, 5xx, failed jobs, app crashes. Empty → logged only.
+  alert_webhook: ""
 database:
   url: postgres://coachwise:passwd@localhost:5432/coachwise_test?sslmode=disable
   sqldir: src/sql

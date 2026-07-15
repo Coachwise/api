@@ -31,6 +31,7 @@ func StartNotificationConsumer() {
 		defer cancel()
 		if err := models.InsertNotification(ctx, job.UserID, job.ActorID, job.Type, job.EntityType, job.EntityID, job.Data); err != nil {
 			logger.Errorf("events: persist notification: %v", err)
+			reportJobFailure("notification", job.Type, err)
 		}
 	})
 	if err != nil {

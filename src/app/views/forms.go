@@ -148,8 +148,8 @@ type TestSubmitForm struct {
 
 // SelfAssessmentForm is an athlete recording their own assessment.
 type SelfAssessmentForm struct {
-	Name    string                `json:"name" binding:"required"`
-	Records []models.SelfRecord   `json:"records" binding:"required,min=1"`
+	Name    string              `json:"name" binding:"required"`
+	Records []models.SelfRecord `json:"records" binding:"required,min=1"`
 }
 
 type AchievementForm struct {
@@ -186,7 +186,7 @@ type PlanScheduleUpdateForm struct {
 type ProfileForm struct {
 	FirstName *string    `json:"first_name" binding:"omitempty,min=1"`
 	LastName  *string    `json:"last_name" binding:"omitempty,min=1"`
-	Username  *string    `json:"username" binding:"omitempty,min=3"`
+	Username  *string    `json:"username" binding:"omitempty,min=5,max=24,alphanum"`
 	JobTitle  *string    `json:"job_title"`
 	Bio       *string    `json:"bio"`
 	Phone     *string    `json:"phone"`
@@ -253,4 +253,19 @@ type CoachApplicationForm struct {
 	Bio             *string `json:"bio"`
 	Website         *string `json:"website"`
 	Instagram       *string `json:"instagram"`
+}
+
+// ClientErrorForm is a crash reported by the app (see telemetry.go). Everything
+// is optional except the message: a report that arrives half-filled is still
+// worth more than one that was rejected for being incomplete.
+type ClientErrorForm struct {
+	Message   string `json:"message" binding:"required,max=1000"`
+	Stack     string `json:"stack" binding:"max=4000"`
+	Kind      string `json:"kind" binding:"max=40"`     // crash | unhandled | api
+	View      string `json:"view" binding:"max=80"`     // which screen it happened on
+	URL       string `json:"url" binding:"max=300"`
+	Version   string `json:"version" binding:"max=40"`
+	Platform  string `json:"platform" binding:"max=40"` // web | android | ios
+	Language  string `json:"language" binding:"max=10"`
+	RequestID string `json:"request_id" binding:"max=64"` // the API request that failed, if any
 }

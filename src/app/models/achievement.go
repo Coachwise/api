@@ -22,13 +22,15 @@ type Achievement struct {
 	Title       string    `db:"title" json:"title"`
 	Description *string   `db:"description" json:"description,omitempty"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 // PersonalRecord is a derived PR for an athlete on an exercise (best per metric,
 // from APPROVED test submissions). Unset metrics are nil.
 type PersonalRecord struct {
 	ExerciseID   uuid.UUID `db:"exercise_id" json:"exercise_id"`
-	ExerciseName string    `db:"exercise_name" json:"exercise_name"`
+	ExerciseName     string        `db:"exercise_name" json:"exercise_name"`
+	ExerciseNameI18n LocalizedText `db:"exercise_name_i18n" json:"exercise_name_i18n,omitempty"`
 	BestWeight   *float64  `db:"best_weight" json:"best_weight,omitempty"`
 	BestReps     *int      `db:"best_reps" json:"best_reps,omitempty"`
 	BestTime     *int      `db:"best_time" json:"best_time,omitempty"`

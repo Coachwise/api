@@ -14,6 +14,7 @@ SELECT t.*,
                'id', ti.id,
                'exercise_id', ti.exercise_id,
                'exercise_name', e.name,
+               'exercise_name_i18n', e.name_i18n,
                'track_reps', ti.track_reps, 'track_weight', ti.track_weight, 'track_time', ti.track_time,
                'target_value', ti.target_value,
                'item_order', ti.item_order
@@ -24,4 +25,4 @@ SELECT t.*,
 FROM tests t
 LEFT JOIN users c ON c.id = t.coach_id
 LEFT JOIN media cm ON cm.id = c.avatar_id
-WHERE t.id IN (?)
+WHERE t.id IN (?) AND t.deleted_at IS NULL

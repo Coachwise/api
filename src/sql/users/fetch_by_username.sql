@@ -1,1 +1,1 @@
-SELECT * FROM users WHERE username = $1
+SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL

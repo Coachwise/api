@@ -1,3 +1,3 @@
-DELETE FROM feeds
-WHERE id = $1 AND user_id = $2
+UPDATE feeds SET deleted_at = now()
+WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 RETURNING id;

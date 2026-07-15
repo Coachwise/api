@@ -4,4 +4,4 @@ SELECT
     row_to_json(m1.*) AS avatar
 FROM users u
 LEFT JOIN media m1 ON m1.id = u.avatar_id
-WHERE u.id IN (?)
+WHERE u.id IN (?) AND u.deleted_at IS NULL

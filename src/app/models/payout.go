@@ -11,8 +11,11 @@ import (
 )
 
 var (
-	ErrInvalidAmount  = errors.New("invalid amount")
-	ErrPayoutExceeds  = errors.New("payout exceeds available balance")
+	ErrInvalidAmount = errors.New("invalid amount")
+	ErrPayoutExceeds = errors.New("payout exceeds available balance")
+	// ErrNegativeBalance: a refund clawed back earnings the coach had already
+	// withdrawn, so they owe money. Nothing goes out until that is settled.
+	ErrNegativeBalance = errors.New("balance is negative; settle it before requesting a payout")
 )
 
 // Payout is a coach withdrawal (top-out) request. Draws from available balance.
@@ -54,6 +57,11 @@ func RequestPayout(ctx context.Context, coachID uuid.UUID, currency string, amou
 	available, err := txWalletAvailable(ctx, tx, wallet.ID)
 	if err != nil {
 		return nil, err
+	}
+	// A refund clawback can leave the coach owing money — the earnings were already
+	// withdrawn when the client was dropped. Nothing goes out until that's settled.
+	if available < 0 {
+		return nil, ErrNegativeBalance
 	}
 	if amount > available {
 		return nil, ErrPayoutExceeds

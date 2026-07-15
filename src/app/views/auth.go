@@ -291,7 +291,9 @@ func authGroup(router *gin.Engine) {
 			return
 		}
 		ctx := c.MustGet("ctx").(context.Context)
-		u, err := models.GetUserByPhone(strings.TrimSpace(form.Phone))
+		// Deleted accounts included: a returning number gets its own account back
+		// rather than a fresh one — but only here, after the code checks out.
+		u, err := models.GetUserByPhoneAny(strings.TrimSpace(form.Phone))
 		if err != nil {
 			Abort(c, CodeOTPInvalid)
 			return
@@ -300,6 +302,12 @@ func authGroup(router *gin.Engine) {
 		if err != nil || !valid {
 			Abort(c, CodeOTPInvalid)
 			return
+		}
+		if u.DeletedAt != nil {
+			if err := u.Revive(ctx); err != nil {
+				AbortServer(c, err)
+				return
+			}
 		}
 		u.Status = "ACTIVE"
 		_ = u.Verify(ctx)

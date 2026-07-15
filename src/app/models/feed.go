@@ -25,6 +25,7 @@ type Feed struct {
 	LikeCount    int         `db:"like_count" json:"like_count"`
 	CommentCount int         `db:"comment_count" json:"comment_count"`
 	Liked        bool        `db:"liked" json:"liked"`
+	DeletedAt *time.Time `db:"deleted_at" json:"-"`
 }
 
 type FeedMedia struct {
