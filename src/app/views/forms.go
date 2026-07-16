@@ -255,6 +255,17 @@ type CoachApplicationForm struct {
 	Instagram       *string `json:"instagram"`
 }
 
+// OpenTicketForm opens a support ticket with its first message.
+type OpenTicketForm struct {
+	Subject string `json:"subject" binding:"required,max=140"`
+	Body    string `json:"body" binding:"required,max=4000"`
+}
+
+// TicketMessageForm is a reply the user adds to an existing ticket.
+type TicketMessageForm struct {
+	Body string `json:"body" binding:"required,max=4000"`
+}
+
 // ClientErrorForm is a crash reported by the app (see telemetry.go). Everything
 // is optional except the message: a report that arrives half-filled is still
 // worth more than one that was rejected for being incomplete.

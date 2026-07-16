@@ -34,6 +34,8 @@ const (
 	CodeNotConnected       = errcode.CodeNotConnected
 	CodePlanLimit          = errcode.CodePlanLimit
 	CodePackageUnavailable = errcode.CodePackageUnavailable
+	CodeTicketNotYourTurn  = errcode.CodeTicketNotYourTurn
+	CodeTicketClosed       = errcode.CodeTicketClosed
 
 	CodeInsufficientFunds      = errcode.CodeInsufficientFunds
 	CodeCurrencyMismatch       = errcode.CodeCurrencyMismatch

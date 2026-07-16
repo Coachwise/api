@@ -30,6 +30,7 @@ func main() {
 	// The sink is initialised here too, not just in the worker: when the bus is
 	// down EmitAlert delivers inline from this process.
 	alert.Init(config.Config.Discord.AlertWebhook, envName())
+	events.InitSupport(config.Config.Discord.SupportWebhook)
 	events.Connect(config.Config.Nats.URL)
 	payments.Init()
 	sms.Init()

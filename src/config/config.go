@@ -39,6 +39,10 @@ type ConfigType struct {
 		// AlertWebhook receives panics, 5xx responses, failed jobs and app
 		// crashes — the #alert-log channel. When empty, alerts are logged instead.
 		AlertWebhook string `mapstructure:"alert_webhook"`
+		// SupportWebhook receives a heads-up when a user opens a ticket or sends a
+		// support message — the admin then answers from the admin panel. When
+		// empty, the ping is logged instead.
+		SupportWebhook string `mapstructure:"support_webhook"`
 	} `mapstructure:"discord"`
 	// Nats is the message queue used to fan events out to consumers (DB-insert
 	// now; push / email / SMS later). When URL is empty the queue is disabled and

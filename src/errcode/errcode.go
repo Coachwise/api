@@ -47,6 +47,8 @@ const (
 	CodeNotConnected       ErrCode = 1203
 	CodePlanLimit          ErrCode = 1204
 	CodePackageUnavailable ErrCode = 1205
+	CodeTicketNotYourTurn  ErrCode = 1206
+	CodeTicketClosed       ErrCode = 1207
 
 	// Billing / wallet (1300+)
 	CodeInsufficientFunds      ErrCode = 1300
@@ -94,6 +96,8 @@ var codeMeta = map[ErrCode]meta{
 	CodeNotConnected:       {http.StatusForbidden, "You need to be connected first"},
 	CodePlanLimit:          {http.StatusForbidden, "You've reached your plan limit"},
 	CodePackageUnavailable: {http.StatusBadRequest, "This package isn't available"},
+	CodeTicketNotYourTurn:  {http.StatusConflict, "Please wait for support to reply before sending again"},
+	CodeTicketClosed:       {http.StatusConflict, "This ticket is closed"},
 
 	CodeInsufficientFunds:      {http.StatusBadRequest, "Insufficient wallet balance"},
 	CodeCurrencyMismatch:       {http.StatusBadRequest, "Currency mismatch"},

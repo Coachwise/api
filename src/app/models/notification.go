@@ -22,6 +22,7 @@ const (
 	NotifPackageRemoved      = "PACKAGE_REMOVED"    // coach removed a client → notify client
 	NotifPlanAssigned        = "PLAN_ASSIGNED"      // coach assigned a plan → notify client
 	NotifPlanRemoved         = "PLAN_REMOVED"       // coach unassigned a plan → notify client
+	NotifSupportReply        = "SUPPORT_REPLY"      // support answered a ticket → notify the user
 )
 
 // Notification is one in-app event for a recipient. The client renders localized

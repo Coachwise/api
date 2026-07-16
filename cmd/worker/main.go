@@ -29,11 +29,16 @@ func main() {
 	})
 
 	alert.Init(config.Config.Discord.AlertWebhook, envName())
+	events.InitSupport(config.Config.Discord.SupportWebhook)
 	events.Connect(config.Config.Nats.URL)
 	sms.Init()
 	events.StartNotificationConsumer()
 	events.StartSMSConsumer()
 	events.StartAlertConsumer()
+	events.StartSupportConsumer()
+	// The panel can't emit events, so this loop turns admin replies (written
+	// straight to the DB) into user notifications + refetch signals.
+	events.StartSupportDeliveryLoop(8 * time.Second)
 	log.Println("worker: running (Ctrl+C to stop)")
 
 	// Block until interrupted.
