@@ -264,11 +264,15 @@ paths:
   /exercises:
     get:
       summary: List exercises
+      description: >-
+        Returns exercises visible to the caller: public library entries plus the
+        caller's own. Others' personal exercises are never listed.
       security:
         - bearerAuth: []
       parameters:
         - in: query
           name: public
+          description: Filter within the visible set to public-only (true) or personal-only (false).
           schema:
             type: boolean
         - in: query
@@ -286,6 +290,10 @@ paths:
                   $ref: '#/components/schemas/Exercise'
     post:
       summary: Create exercise
+      description: >-
+        Any authenticated user may create an exercise; it is always personal
+        (public is forced false). The public library is curated via the seeder
+        and admin panel, not this endpoint.
       security:
         - bearerAuth: []
       requestBody:
@@ -304,6 +312,10 @@ paths:
   /exercises/{id}:
     get:
       summary: Get exercise
+      description: >-
+        Visible when the exercise is public, owned by the caller, or part of a
+        plan assigned to them; otherwise 404. Editing/deleting is limited to the
+        owner (library rows with a null owner are editable by nobody).
       security:
         - bearerAuth: []
       parameters:
@@ -1148,8 +1160,6 @@ components:
           type: string
         description:
           type: string
-        public:
-          type: boolean
         sets:
           type: array
           items:

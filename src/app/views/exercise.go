@@ -42,6 +42,25 @@ func validateExerciseForm(form *ExerciseForm) error {
 	return nil
 }
 
+// exerciseVisibleTo reports whether a user may see an exercise: it is public,
+// it is theirs, or it belongs to a plan assigned to them.
+func exerciseVisibleTo(ex *models.Exercise, userID uuid.UUID) bool {
+	if ex.Public {
+		return true
+	}
+	if ex.UserID != nil && *ex.UserID == userID {
+		return true
+	}
+	reachable, err := models.ExerciseReachableViaPlan(ex.ID, userID)
+	return err == nil && reachable
+}
+
+// exerciseOwnedBy reports whether a user may edit or delete an exercise. Seeded
+// library rows have user_id NULL and are editable by nobody through the API.
+func exerciseOwnedBy(ex *models.Exercise, userID uuid.UUID) bool {
+	return ex.UserID != nil && *ex.UserID == userID
+}
+
 func exerciseGroup(router *gin.Engine) {
 	g := router.Group("exercises")
 	g.Use(auth.LoginRequired())
@@ -53,10 +72,6 @@ func exerciseGroup(router *gin.Engine) {
 
 	g.POST("", func(c *gin.Context) {
 		user := c.MustGet("user").(*models.User)
-		if !user.IsCoach {
-			Abort(c, CodeCoachOnly)
-			return
-		}
 		form := new(ExerciseForm)
 		if err := c.ShouldBindJSON(form); err != nil {
 			AbortValidation(c, err)
@@ -79,6 +94,9 @@ func exerciseGroup(router *gin.Engine) {
 		ex.Name = html.EscapeString(ex.Name)
 		ex.Description = html.EscapeString(ex.Description)
 		ex.UserID = &user.ID
+		// Anyone may create an exercise, but only for themselves — the public
+		// library is curated via the seeder and admin panel, never the API.
+		ex.Public = false
 		for i := range ex.Sets {
 			ex.Sets[i].SetNumber = i + 1
 			safeName := html.EscapeString(form.Sets[i].Name)
@@ -116,6 +134,11 @@ func exerciseGroup(router *gin.Engine) {
 			AbortServer(c, err)
 			return
 		}
+		user := c.MustGet("user").(*models.User)
+		if !exerciseVisibleTo(ex, user.ID) {
+			AbortStatus(c, http.StatusNotFound, "exercise not found")
+			return
+		}
 		c.JSON(http.StatusOK, ex)
 	})
 
@@ -131,7 +154,7 @@ func exerciseGroup(router *gin.Engine) {
 			return
 		}
 		user := c.MustGet("user").(*models.User)
-		if ex.UserID != nil && ex.UserID.String() != user.ID.String() {
+		if !exerciseOwnedBy(ex, user.ID) {
 			AbortStatus(c, http.StatusForbidden, "forbidden")
 			return
 		}
@@ -180,9 +203,10 @@ func exerciseGroup(router *gin.Engine) {
 		}
 		category := c.Query("category") // exercise_categories.slug, or "" for all
 		sport := c.Query("sport")       // exercise_sport_type, or "" for all
+		user := c.MustGet("user").(*models.User)
 		ctx := c.MustGet("ctx")
 		page, _ := c.Get("paginate")
-		items, total, err := models.ListExercisesPaginated(ctx.(context.Context), publicFilter, search, category, sport, page.(database.Paginate))
+		items, total, err := models.ListExercisesPaginated(ctx.(context.Context), user.ID, publicFilter, search, category, sport, page.(database.Paginate))
 		if err != nil {
 			AbortServer(c, err)
 			return
@@ -202,7 +226,7 @@ func exerciseGroup(router *gin.Engine) {
 			AbortServer(c, err)
 			return
 		}
-		if existing.UserID != nil && existing.UserID.String() != user.ID.String() {
+		if !exerciseOwnedBy(existing, user.ID) {
 			AbortStatus(c, http.StatusForbidden, "forbidden")
 			return
 		}

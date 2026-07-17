@@ -17,9 +17,9 @@ func exerciseGroup() {
 	var exerciseId string
 	var publicExerciseId string
 
-	// Building an exercise is coach-only. The suite's shared user registers as a
-	// plain athlete, so promote them once — otherwise every spec here 403s and
-	// takes plans, sessions and assessments down with it.
+	// Anyone can build an exercise now, but later groups (plans, packages,
+	// assessments) still expect the shared user to be a coach — this promotion
+	// runs first, so keep it.
 	BeforeEach(func() {
 		db.MustExec("UPDATE users SET is_coach = true WHERE email = $1", usersData[0]["email"])
 	})
@@ -43,7 +43,9 @@ func exerciseGroup() {
 			Expect(len(sets)).To(Equal(2))
 		})
 
-		It("should create public exercise", func() {
+		It("should force created exercises to be personal, ignoring public:true", func() {
+			// The API refuses to publish to the shared library; public is server-set
+			// to false regardless of what the client sends.
 			w := httptest.NewRecorder()
 			reqBody, _ := json.Marshal(gin.H{
 				"name":        "Public Exercise",
@@ -61,7 +63,7 @@ func exerciseGroup() {
 
 			body := decodeBody(w.Body)
 			Expect(w.Code).To(Equal(201))
-			Expect(body["public"]).To(Equal(true))
+			Expect(body["public"]).To(Equal(false))
 			publicExerciseId = body["id"].(string)
 		})
 
@@ -380,6 +382,115 @@ func exerciseGroup() {
 			req, _ := http.NewRequest("DELETE", fmt.Sprintf("/exercises/%s", publicExerciseId), nil)
 			router.ServeHTTP(w, req)
 			Expect(w.Code).To(Equal(401))
+		})
+	})
+
+	Describe("Exercise Visibility", func() {
+		var bToken, userAID, userBID string
+
+		// Register a second user (B) once, so specs can assert what B can and
+		// cannot see of user A's exercises.
+		BeforeEach(func() {
+			db.Get(&userAID, "SELECT id FROM users WHERE email = $1", usersData[0]["email"])
+			if bToken != "" {
+				return
+			}
+			w := httptest.NewRecorder()
+			reqBody, _ := json.Marshal(gin.H{
+				"first_name": "Visibility",
+				"last_name":  "Bee",
+				"username":   "visibilitybee",
+				"email":      "visibility_b@test.com",
+				"password":   "password123",
+			})
+			req, _ := http.NewRequest("POST", "/auth/register", bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(w, req)
+
+			otp := struct{ Code string }{}
+			db.Get(&otp, "SELECT code FROM otps WHERE email = 'visibility_b@test.com' LIMIT 1")
+			w2 := httptest.NewRecorder()
+			reqBody2, _ := json.Marshal(gin.H{"email": "visibility_b@test.com", "code": otp.Code})
+			req2, _ := http.NewRequest("POST", "/auth/otp/verify", bytes.NewBuffer(reqBody2))
+			req2.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(w2, req2)
+			body := decodeBody(w2.Body)
+			bToken = body["access_token"].(string)
+			db.Get(&userBID, "SELECT id FROM users WHERE email = 'visibility_b@test.com'")
+		})
+
+		It("should hide user A's personal exercise from user B (detail 404)", func() {
+			var exID string
+			db.Get(&exID, `INSERT INTO exercises (user_id, name, description, public, sport_type)
+				VALUES ($1, 'A private', 'x', false, 'GENERAL') RETURNING id`, userAID)
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", fmt.Sprintf("/exercises/%s", exID), nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", bToken))
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(404))
+		})
+
+		It("should keep user A's personal exercise out of user B's list", func() {
+			var exID string
+			db.Get(&exID, `INSERT INTO exercises (user_id, name, description, public, sport_type)
+				VALUES ($1, 'A private listed', 'x', false, 'GENERAL') RETURNING id`, userAID)
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/exercises?limit=100", nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", bToken))
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(200))
+			body := decodeBody(w.Body)
+			for _, item := range body["items"].([]interface{}) {
+				Expect(item.(map[string]interface{})["id"]).ToNot(Equal(exID))
+			}
+		})
+
+		It("should let user B open user A's personal exercise via an assigned plan", func() {
+			var exID, planID string
+			db.Get(&exID, `INSERT INTO exercises (user_id, name, description, public, sport_type)
+				VALUES ($1, 'A plan exercise', 'x', false, 'GENERAL') RETURNING id`, userAID)
+			db.Get(&planID, `INSERT INTO plans (user_id, name, public)
+				VALUES ($1, 'A plan', false) RETURNING id`, userAID)
+			db.MustExec(`INSERT INTO plan_exercises (exercise_id, plan_id, exercise_order, rest_time)
+				VALUES ($1, $2, 1, 0)`, exID, planID)
+			db.MustExec(`INSERT INTO plan_assignees (plan_id, user_id, assigner)
+				VALUES ($1, $2, $3)`, planID, userBID, userAID)
+
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", fmt.Sprintf("/exercises/%s", exID), nil)
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", bToken))
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(200))
+		})
+
+		It("should let anyone view a seeded library exercise but nobody edit or delete it", func() {
+			var libID string
+			db.Get(&libID, `INSERT INTO exercises (user_id, name, description, public, sport_type)
+				VALUES (NULL, 'Library exercise', 'x', true, 'GENERAL') RETURNING id`)
+
+			// Visible to user B (it is public).
+			wGet := httptest.NewRecorder()
+			reqGet, _ := http.NewRequest("GET", fmt.Sprintf("/exercises/%s", libID), nil)
+			reqGet.Header.Set("Authorization", fmt.Sprintf("Bearer %s", bToken))
+			router.ServeHTTP(wGet, reqGet)
+			Expect(wGet.Code).To(Equal(200))
+
+			// But a user_id-NULL row is owned by nobody, so edits are forbidden.
+			wPut := httptest.NewRecorder()
+			putBody, _ := json.Marshal(gin.H{"name": "hijacked", "description": "x"})
+			reqPut, _ := http.NewRequest("PUT", fmt.Sprintf("/exercises/%s", libID), bytes.NewBuffer(putBody))
+			reqPut.Header.Set("Content-Type", "application/json")
+			reqPut.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(wPut, reqPut)
+			Expect(wPut.Code).To(Equal(403))
+
+			wDel := httptest.NewRecorder()
+			reqDel, _ := http.NewRequest("DELETE", fmt.Sprintf("/exercises/%s", libID), nil)
+			reqDel.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(wDel, reqDel)
+			Expect(wDel.Code).To(Equal(403))
 		})
 	})
 

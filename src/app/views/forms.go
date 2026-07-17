@@ -10,7 +10,6 @@ import (
 type ExerciseForm struct {
 	Name        string                    `json:"name"`
 	Description string                    `json:"description"`
-	Public      bool                      `json:"public"`
 	SportType   *models.ExerciseSportType `json:"sport_type"`
 	MediaID     *uuid.UUID                `json:"media_id"`
 	Sets        []struct {

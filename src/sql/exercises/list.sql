@@ -1,6 +1,7 @@
 SELECT id, COUNT(*) OVER () AS total_count
 FROM exercises
 WHERE deleted_at IS NULL
+  AND (public = true OR user_id = $7)
   AND (COALESCE($1::boolean, public) = public)
   AND ($2 = '' OR search_vector @@ to_tsquery('simple', $2))
   AND ($5 = '' OR category_id = (SELECT id FROM exercise_categories WHERE slug = $5))

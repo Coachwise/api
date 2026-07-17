@@ -61,7 +61,7 @@ func (Exercise) FetchQuery() string {
 // ListExercisesPaginated returns a page of exercises plus the total count.
 // `search` is free text (any language); it's turned into a prefix tsquery matched
 // against the exercises.search_vector (name/description + i18n + slug).
-func ListExercisesPaginated(ctx context.Context, public *bool, search, category, sport string, p database.Paginate) ([]Exercise, int, error) {
+func ListExercisesPaginated(ctx context.Context, viewerID uuid.UUID, public *bool, search, category, sport string, p database.Paginate) ([]Exercise, int, error) {
 	var (
 		exercises = []Exercise{}
 		fetchList []database.FetchList
@@ -69,7 +69,7 @@ func ListExercisesPaginated(ctx context.Context, public *bool, search, category,
 		total     int
 	)
 
-	if err := database.QuerySelect("exercises/list", &fetchList, public, toTSQueryPrefix(search), p.Limit, p.Offset, category, sport); err != nil {
+	if err := database.QuerySelect("exercises/list", &fetchList, public, toTSQueryPrefix(search), p.Limit, p.Offset, category, sport, viewerID); err != nil {
 		return nil, 0, err
 	}
 	if len(fetchList) == 0 {
@@ -230,6 +230,17 @@ func GetExrcise(id uuid.UUID) (*Exercise, error) {
 	_ = e.SetsJson.Unmarshal(&e.Sets)
 	_ = e.MediaJson.Unmarshal(&e.Media)
 	return e, nil
+}
+
+// ExerciseReachableViaPlan reports whether an exercise is part of any plan
+// assigned to the user — so a client can open a coach's personal exercise that
+// their assigned plan references.
+func ExerciseReachableViaPlan(exerciseID, userID uuid.UUID) (bool, error) {
+	var hits []int
+	if err := database.QuerySelect("exercises/reachable_via_plan", &hits, exerciseID, userID); err != nil {
+		return false, err
+	}
+	return len(hits) > 0, nil
 }
 
 func DeleteExercise(ctx context.Context, id uuid.UUID) error {
