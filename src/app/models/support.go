@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"coachwise/src/database"
@@ -40,6 +41,20 @@ const (
 	SupportTurnUser     = "USER"
 	SupportTurnAdmin    = "ADMIN"
 )
+
+// SYSTEM message bodies are stable markers, not prose, so the app can localize
+// them (and so the two sides never disagree on wording). Both sides write these.
+const (
+	SupportSysClosedByUser    = "closed_by_user"
+	SupportSysClosedBySupport = "closed_by_support"
+)
+
+// TicketRef is the short, human-quotable reference for a ticket — the same one
+// the app and the admin panel show, so a user quoting "#3F9A2B1C" and the person
+// answering are talking about the same row. Derived from the id: nothing to store.
+func TicketRef(id uuid.UUID) string {
+	return strings.ToUpper(strings.ReplaceAll(id.String(), "-", "")[:8])
+}
 
 // Errors the send path returns so the view can map them to the right code.
 var (
@@ -78,10 +93,12 @@ type SupportTicketListItem struct {
 }
 
 // SupportDelivery is one admin/system message the worker has claimed to push.
+// Sender decides the notification: ADMIN → a reply, SYSTEM → a status update.
 type SupportDelivery struct {
 	ID       uuid.UUID `db:"id"`
 	TicketID uuid.UUID `db:"ticket_id"`
 	UserID   uuid.UUID `db:"user_id"`
+	Sender   string    `db:"sender"`
 	Body     string    `db:"body"`
 }
 
@@ -179,6 +196,60 @@ func AddUserMessage(ctx context.Context, ticketID, userID uuid.UUID, body string
 	}
 	committed = true
 	return msg, nil
+}
+
+// CloseTicketByUser closes the user's own open ticket and records a SYSTEM marker
+// in the thread. The marker is written already-delivered (delivered_at = now)
+// so the worker does NOT push a notification back to the user who just closed it.
+func CloseTicketByUser(ctx context.Context, ticketID, userID uuid.UUID) (*SupportTicket, error) {
+	ticket, err := GetTicket(ctx, ticketID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if ticket == nil {
+		return nil, ErrTicketNotFound
+	}
+	if ticket.Status == SupportStatusClosed {
+		return nil, ErrTicketClosed
+	}
+
+	tx, err := database.GetDB().Beginx()
+	if err != nil {
+		return nil, err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	closed := new(SupportTicket)
+	rows, err := database.TxQuery(ctx, tx, "support/user_close", ticketID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := scanOne(rows, closed); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrTicketClosed // a concurrent close won the race
+		}
+		return nil, err
+	}
+
+	// Already-delivered SYSTEM marker: it shows in the thread as "you closed this",
+	// and delivered_at set means the worker skips it (no self-notification).
+	mrows, err := database.TxQuery(ctx, tx, "support/create_system_message",
+		ticketID, SupportSysClosedByUser, time.Now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	mrows.Close()
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	committed = true
+	return closed, nil
 }
 
 // GetTicket returns the user's own ticket, or nil when it does not exist / is not

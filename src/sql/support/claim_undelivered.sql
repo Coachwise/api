@@ -9,4 +9,4 @@ FROM support_tickets t
 WHERE m.ticket_id = t.id
   AND m.delivered_at IS NULL
   AND m.sender <> 'USER'
-RETURNING m.id, m.ticket_id, t.user_id, m.body;
+RETURNING m.id, m.ticket_id, t.user_id, m.sender, m.body;

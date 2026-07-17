@@ -173,4 +173,68 @@ func supportGroup() {
 		w := do(http.MethodGet, "/support/tickets/"+uuid.NewString(), token, nil)
 		Expect(w.Code).To(Equal(http.StatusNotFound))
 	})
+
+	It("lets the user close their own ticket, and blocks sending afterwards", func() {
+		w := do(http.MethodPost, "/support/tickets", token, gin.H{"subject": "User closes", "body": "solved it myself"})
+		ticketID := decodeBody(w.Body)["ticket"].(map[string]any)["id"].(string)
+
+		c := do(http.MethodPost, "/support/tickets/"+ticketID+"/close", token, nil)
+		Expect(c.Code).To(Equal(http.StatusOK), c.Body.String())
+		Expect(decodeBody(c.Body)["ticket"].(map[string]any)["status"]).To(Equal("CLOSED"))
+
+		// Closing twice is refused rather than silently re-closing.
+		again := do(http.MethodPost, "/support/tickets/"+ticketID+"/close", token, nil)
+		Expect(again.Code).To(Equal(http.StatusConflict))
+		Expect(decodeBody(again.Body)["code"]).To(BeEquivalentTo(1207))
+
+		// The thread records who closed it, as a localizable SYSTEM marker.
+		th := do(http.MethodGet, "/support/tickets/"+ticketID, token, nil)
+		msgs := decodeBody(th.Body)["messages"].([]any)
+		last := msgs[len(msgs)-1].(map[string]any)
+		Expect(last["sender"]).To(Equal("SYSTEM"))
+		Expect(last["body"]).To(Equal("closed_by_user"))
+	})
+
+	It("does not notify the user about their own close", func() {
+		w := do(http.MethodPost, "/support/tickets", token, gin.H{"subject": "Self close", "body": "hi"})
+		ticketID := decodeBody(w.Body)["ticket"].(map[string]any)["id"].(string)
+		Expect(do(http.MethodPost, "/support/tickets/"+ticketID+"/close", token, nil).Code).To(Equal(http.StatusOK))
+
+		// The user's own SYSTEM marker is written already-delivered, so the worker
+		// must not pick it up and tell them about something they just did.
+		claims, err := models.ClaimUndeliveredReplies(context.Background())
+		Expect(err).To(BeNil())
+		for i := range claims {
+			Expect(claims[i].TicketID.String()).NotTo(Equal(ticketID), "must not notify the closer")
+		}
+	})
+
+	It("notifies the user when support closes the ticket", func() {
+		w := do(http.MethodPost, "/support/tickets", token, gin.H{"subject": "Support closes", "body": "help"})
+		ticketID := decodeBody(w.Body)["ticket"].(map[string]any)["id"].(string)
+
+		// Exactly what the panel's Close action writes: a SYSTEM marker left
+		// undelivered, so the worker is what tells the user.
+		_, err := db.Exec(`INSERT INTO support_messages (ticket_id, sender, body) VALUES ($1,'SYSTEM','closed_by_support')`, ticketID)
+		Expect(err).To(BeNil())
+		_, err = db.Exec(`UPDATE support_tickets SET status='CLOSED' WHERE id=$1`, ticketID)
+		Expect(err).To(BeNil())
+
+		claims, err := models.ClaimUndeliveredReplies(context.Background())
+		Expect(err).To(BeNil())
+		var mine *models.SupportDelivery
+		for i := range claims {
+			if claims[i].TicketID.String() == ticketID {
+				mine = &claims[i]
+			}
+		}
+		Expect(mine).NotTo(BeNil(), "support's close must reach the user")
+		Expect(mine.Sender).To(Equal("SYSTEM"), "sender drives the notification type")
+		Expect(mine.Body).To(Equal("closed_by_support"))
+	})
+
+	It("gives a ticket a short reference both sides can quote", func() {
+		id := uuid.MustParse("3f9a2b1c-81d5-4de5-b8b4-9cf858050ac6")
+		Expect(models.TicketRef(id)).To(Equal("3F9A2B1C"))
+	})
 }

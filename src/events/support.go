@@ -104,8 +104,14 @@ func deliverSupportReplies() {
 	entityType := "support_ticket"
 	for _, r := range replies {
 		ticketID := r.TicketID
-		EmitNotification(r.UserID, nil, models.NotifSupportReply, &entityType, &ticketID,
-			map[string]string{"preview": utils.TruncateRunes(r.Body, 140)})
+		// An ADMIN message is a reply; a SYSTEM message is a status change (a close).
+		notifType := models.NotifSupportReply
+		data := map[string]string{"preview": utils.TruncateRunes(r.Body, 140)}
+		if r.Sender == models.SupportSenderSystem {
+			notifType = models.NotifSupportUpdate
+			data = map[string]string{"event": r.Body} // a stable marker the app localizes
+		}
+		EmitNotification(r.UserID, nil, notifType, &entityType, &ticketID, data)
 		// Poke the open ticket view too, so an app sitting on the thread updates live.
 		EmitSignal(r.UserID, "support")
 	}

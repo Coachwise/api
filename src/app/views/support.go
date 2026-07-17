@@ -118,6 +118,35 @@ func supportGroup(router *gin.Engine) {
 		}
 		c.JSON(http.StatusCreated, gin.H{"message": msg})
 	})
+
+	// The user closes their own ticket.
+	g.POST("/tickets/:id/close", func(c *gin.Context) {
+		user := c.MustGet("user").(*models.User)
+		ctx := c.MustGet("ctx").(context.Context)
+
+		id, err := uuid.Parse(c.Param("id"))
+		if err != nil {
+			Abort(c, CodeNotFound)
+			return
+		}
+		ticket, err := models.CloseTicketByUser(ctx, id, user.ID)
+		if err != nil {
+			switch {
+			case errors.Is(err, models.ErrTicketNotFound):
+				Abort(c, CodeNotFound)
+			case errors.Is(err, models.ErrTicketClosed):
+				Abort(c, CodeTicketClosed)
+			default:
+				AbortServer(c, err)
+			}
+			return
+		}
+		// The user did this, so no notification to them — but their other devices
+		// should reflect it, and Discord tells the team it's resolved.
+		events.EmitSignal(user.ID, "support")
+		events.EmitSupportPing(fmt.Sprintf("✅ **Support** — ticket `%s` closed by the user.", ticket.ID))
+		c.JSON(http.StatusOK, gin.H{"ticket": ticket})
+	})
 }
 
 // pingSupport queues a Discord heads-up that a ticket needs attention. Delivery
@@ -129,7 +158,7 @@ func pingSupport(user *models.User, ticket *models.SupportTicket, body string) {
 		name = *user.FirstName
 	}
 	events.EmitSupportPing(fmt.Sprintf(
-		"🎫 **Support** — %s\n**%s**\n%s\n\n_Reply in the admin panel · ticket `%s`_",
-		name, ticket.Subject, utils.TruncateRunes(body, 500), ticket.ID,
+		"🎫 **Support** `#%s` — %s\n**%s**\n%s\n\n_Reply in the admin panel · ticket `%s`_",
+		models.TicketRef(ticket.ID), name, ticket.Subject, utils.TruncateRunes(body, 500), ticket.ID,
 	))
 }
