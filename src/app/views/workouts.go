@@ -118,7 +118,23 @@ func workoutsGroup(router *gin.Engine) {
 		ctx := c.MustGet("ctx")
 		page, _ := c.Get("paginate")
 
-		items, total, err := models.ListDailyAnalytics(ctx.(context.Context), user.ID, page.(database.Paginate))
+		// Default: the caller's own analytics. A coach may view a client's via
+		// ?athlete=<clientId> when that client is enrolled in one of their packages.
+		target := user.ID
+		if a := c.Query("athlete"); a != "" {
+			clientID, err := uuid.Parse(a)
+			if err != nil {
+				AbortStatus(c, http.StatusBadRequest, "invalid athlete id")
+				return
+			}
+			if ok, _ := models.IsCoachClient(ctx.(context.Context), user.ID, clientID); !ok {
+				AbortStatus(c, http.StatusNotFound, "client not found")
+				return
+			}
+			target = clientID
+		}
+
+		items, total, err := models.ListDailyAnalytics(ctx.(context.Context), target, page.(database.Paginate))
 		if err != nil {
 			AbortServer(c, err)
 			return

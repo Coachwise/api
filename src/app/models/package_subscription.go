@@ -82,6 +82,16 @@ func ListClientSubscriptionsPaginated(ctx context.Context, clientID uuid.UUID, p
 	return subs, total, nil
 }
 
+// IsCoachClient reports whether the client is actively enrolled in one of the
+// coach's packages — the gate for a coach viewing that client's analytics.
+func IsCoachClient(ctx context.Context, coachID, clientID uuid.UUID) (bool, error) {
+	var hits []int
+	if err := database.QuerySelect("subscriptions/is_client", &hits, coachID, clientID); err != nil {
+		return false, err
+	}
+	return len(hits) > 0, nil
+}
+
 // ActiveSubscriptionFor returns the client's active subscription with the coach,
 // or nil when they have none.
 func ActiveSubscriptionFor(ctx context.Context, coachID, clientID uuid.UUID) *PackageSubscription {
