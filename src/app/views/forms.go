@@ -12,7 +12,13 @@ type ExerciseForm struct {
 	Description string                    `json:"description"`
 	SportType   *models.ExerciseSportType `json:"sport_type"`
 	MediaID     *uuid.UUID                `json:"media_id"`
-	Sets        []struct {
+	// Which extra metrics the exercise tracks. Pointers so an omitted flag falls
+	// back to a default (weight on, the rest off) rather than forcing false.
+	TrackWeight   *bool `json:"track_weight"`
+	TrackDistance *bool `json:"track_distance"`
+	TrackGrade    *bool `json:"track_grade"`
+	TrackHeight   *bool `json:"track_height"`
+	Sets          []struct {
 		Name     string         `json:"name"`
 		RestTime time.Duration  `json:"rest_time"`
 		RepCount *int           `json:"rep_count"`
@@ -43,6 +49,8 @@ type CreateWorkoutLogForm struct {
 	RPE             *float64   `json:"rpe"`
 	DurationSeconds *int       `json:"duration_seconds"`
 	Grade           *string    `json:"grade"`
+	Distance        *float64   `json:"distance"`
+	Height          *float64   `json:"height"`
 	Completed       *bool      `json:"completed"`
 	Attempts        *int       `json:"attempts"`
 	Notes           *string    `json:"notes"`
@@ -55,6 +63,8 @@ type UpdateWorkoutLogForm struct {
 	RPE             *float64 `json:"rpe"`
 	DurationSeconds *int     `json:"duration_seconds"`
 	Grade           *string  `json:"grade"`
+	Distance        *float64 `json:"distance"`
+	Height          *float64 `json:"height"`
 	Completed       *bool    `json:"completed"`
 	Attempts        *int     `json:"attempts"`
 	Notes           *string  `json:"notes"`

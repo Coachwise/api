@@ -26,6 +26,12 @@ type Exercise struct {
 	SportType       ExerciseSportType `json:"sport_type" db:"sport_type"`
 	CategoryID      *uuid.UUID        `json:"category_id" db:"category_id"`
 	MediaID         *uuid.UUID        `json:"media_id" db:"media_id"`
+	// Which extra actuals an athlete logs per set (reps/duration come from the
+	// set prescription). Weight defaults on to match the historic logger.
+	TrackWeight   bool `json:"track_weight" db:"track_weight"`
+	TrackDistance bool `json:"track_distance" db:"track_distance"`
+	TrackGrade    bool `json:"track_grade" db:"track_grade"`
+	TrackHeight   bool `json:"track_height" db:"track_height"`
 	Media           *Media            `json:"media,omitempty" db:"-"`
 	Sets            []Set             `json:"sets" db:"-"`
 	CreatedAt       time.Time         `json:"created_at" db:"created_at"`
@@ -126,6 +132,7 @@ func (e *Exercise) Create(ctx context.Context) error {
 		tx,
 		"exercises/create",
 		e.UserID, e.Name, e.Description, e.Public, e.SportType, e.MediaID,
+		e.TrackWeight, e.TrackDistance, e.TrackGrade, e.TrackHeight,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -173,6 +180,7 @@ func (e *Exercise) Update(ctx context.Context) error {
 		tx,
 		"exercises/update",
 		e.ID, e.Name, e.Description, e.Public, e.SportType, e.MediaID,
+		e.TrackWeight, e.TrackDistance, e.TrackGrade, e.TrackHeight,
 	)
 	if err != nil {
 		tx.Rollback()

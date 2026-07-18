@@ -1118,6 +1118,18 @@ components:
           type: string
         public:
           type: boolean
+        track_weight:
+          type: boolean
+          description: Log a weight (kg) actual per set. Defaults true.
+        track_distance:
+          type: boolean
+          description: Log a distance (metres) actual per set.
+        track_grade:
+          type: boolean
+          description: Log a climbing grade (V / Font scale) per set.
+        track_height:
+          type: boolean
+          description: Log a height (cm) actual per set.
         sets:
           type: array
           items:
@@ -1160,6 +1172,15 @@ components:
           type: string
         description:
           type: string
+        track_weight:
+          type: boolean
+          description: Defaults true when omitted; the rest default false.
+        track_distance:
+          type: boolean
+        track_grade:
+          type: boolean
+        track_height:
+          type: boolean
         sets:
           type: array
           items:
@@ -1264,6 +1285,17 @@ components:
         grade:
           type: string
           nullable: true
+          description: Climbing grade (V or Font scale)
+        distance:
+          type: number
+          format: float
+          nullable: true
+          description: metres
+        height:
+          type: number
+          format: float
+          nullable: true
+          description: centimetres
         completed:
           type: boolean
         attempts:

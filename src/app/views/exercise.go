@@ -42,6 +42,15 @@ func validateExerciseForm(form *ExerciseForm) error {
 	return nil
 }
 
+// applyExerciseMetrics copies the tracked-metric flags off the form, defaulting
+// weight on and the rest off when a flag is omitted.
+func applyExerciseMetrics(ex *models.Exercise, form *ExerciseForm) {
+	ex.TrackWeight = form.TrackWeight == nil || *form.TrackWeight
+	ex.TrackDistance = form.TrackDistance != nil && *form.TrackDistance
+	ex.TrackGrade = form.TrackGrade != nil && *form.TrackGrade
+	ex.TrackHeight = form.TrackHeight != nil && *form.TrackHeight
+}
+
 // exerciseVisibleTo reports whether a user may see an exercise: it is public,
 // it is theirs, or it belongs to a plan assigned to them.
 func exerciseVisibleTo(ex *models.Exercise, userID uuid.UUID) bool {
@@ -97,6 +106,7 @@ func exerciseGroup(router *gin.Engine) {
 		// Anyone may create an exercise, but only for themselves — the public
 		// library is curated via the seeder and admin panel, never the API.
 		ex.Public = false
+		applyExerciseMetrics(ex, form)
 		for i := range ex.Sets {
 			ex.Sets[i].SetNumber = i + 1
 			safeName := html.EscapeString(form.Sets[i].Name)
@@ -178,6 +188,7 @@ func exerciseGroup(router *gin.Engine) {
 		utils.Copy(form, ex)
 		ex.Name = html.EscapeString(ex.Name)
 		ex.Description = html.EscapeString(ex.Description)
+		applyExerciseMetrics(ex, form)
 		for i := range ex.Sets {
 			safeName := html.EscapeString(form.Sets[i].Name)
 			ex.Sets[i].Name = utils.StrPtr(safeName)

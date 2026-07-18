@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"coachwise/src/logger"
+	"coachwise/src/utils"
 )
 
 // Discord's limits, which are not suggestions: an embed description caps at 4096
@@ -210,7 +211,7 @@ func post(e Event, count int) {
 	// One retry, and only for a 429 — Discord tells us how long to wait. Anything
 	// else is logged and dropped: alerting must not turn into a retry storm.
 	for attempt := 0; attempt < 2; attempt++ {
-		resp, err := http.Post(webhook, "application/json", bytes.NewReader(body))
+		resp, err := utils.DiscordClient().Post(webhook, "application/json", bytes.NewReader(body))
 		if err != nil {
 			logger.Errorf("alert: post failed: %v", err)
 			return

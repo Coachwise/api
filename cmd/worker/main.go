@@ -9,6 +9,7 @@ import (
 	"coachwise/src/config"
 	"coachwise/src/events"
 	"coachwise/src/sms"
+	"coachwise/src/utils"
 	"log"
 	"os"
 	"os/signal"
@@ -28,6 +29,7 @@ func main() {
 		Timeout:     5 * time.Second,
 	})
 
+	utils.InitDiscord(config.Config.Discord.Proxy)
 	alert.Init(config.Config.Discord.AlertWebhook, envName())
 	events.InitSupport(config.Config.Discord.SupportWebhook)
 	events.Connect(config.Config.Nats.URL)

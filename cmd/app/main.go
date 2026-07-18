@@ -9,6 +9,7 @@ import (
 	"coachwise/src/payments"
 	"coachwise/src/sms"
 	"coachwise/src/storage"
+	"coachwise/src/utils"
 	"time"
 
 	"coachwise/src/database"
@@ -29,6 +30,7 @@ func main() {
 	// pushes them to connected websockets.
 	// The sink is initialised here too, not just in the worker: when the bus is
 	// down EmitAlert delivers inline from this process.
+	utils.InitDiscord(config.Config.Discord.Proxy)
 	alert.Init(config.Config.Discord.AlertWebhook, envName())
 	events.InitSupport(config.Config.Discord.SupportWebhook)
 	events.Connect(config.Config.Nats.URL)

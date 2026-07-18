@@ -136,10 +136,17 @@ func seedExercises(db *sql.DB) error {
 		if err := db.QueryRow(`
 			INSERT INTO exercises
 			  (user_id, slug, name, description, name_i18n, description_i18n,
-			   public, sport_type, category_id, media_id)
+			   public, sport_type, category_id, media_id,
+			   track_weight, track_distance, track_grade, track_height)
 			VALUES
 			  (NULL, $1, $2, $3, $4::jsonb, $5::jsonb,
-			   true, $6::exercise_sport_type, $7, $8)
+			   true, $6::exercise_sport_type, $7, $8,
+			   -- Climbing is graded (grade + wall height), cardio is distance, the
+			   -- rest is weight — matching the metrics migration's backfill.
+			   $6 NOT IN ('CLIMBING', 'CARDIO'),
+			   $6 = 'CARDIO',
+			   $6 = 'CLIMBING',
+			   $6 = 'CLIMBING')
 			ON CONFLICT (slug) DO UPDATE SET
 			  name = EXCLUDED.name,
 			  description = EXCLUDED.description,
@@ -149,6 +156,10 @@ func seedExercises(db *sql.DB) error {
 			  sport_type = EXCLUDED.sport_type,
 			  category_id = EXCLUDED.category_id,
 			  media_id = EXCLUDED.media_id,
+			  track_weight = EXCLUDED.track_weight,
+			  track_distance = EXCLUDED.track_distance,
+			  track_grade = EXCLUDED.track_grade,
+			  track_height = EXCLUDED.track_height,
 			  updated_at = now()
 			RETURNING id`,
 			e.Slug, e.Name["en"], e.Description["en"], string(nameI18n), string(descI18n),

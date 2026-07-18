@@ -26,6 +26,8 @@ type WorkoutLog struct {
 	RPE             *float64   `db:"rpe" json:"rpe"`
 	DurationSeconds *int       `db:"duration_seconds" json:"duration_seconds"`
 	Grade           *string    `db:"grade" json:"grade"`
+	Distance        *float64   `db:"distance" json:"distance"`
+	Height          *float64   `db:"height" json:"height"`
 	Completed       bool       `db:"completed" json:"completed"`
 	Attempts        *int       `db:"attempts" json:"attempts"`
 	Notes           *string    `db:"notes" json:"notes"`
@@ -50,6 +52,7 @@ func (wl *WorkoutLog) Create(ctx context.Context) error {
 		wl.SessionID, wl.ExerciseID, wl.ExerciseName, wl.SetNumber,
 		wl.Reps, wl.Weight, wl.RPE, wl.DurationSeconds,
 		wl.Grade, wl.Completed, wl.Attempts, wl.Notes,
+		wl.Distance, wl.Height,
 	)
 	if err != nil {
 		return err
@@ -69,6 +72,7 @@ func (wl *WorkoutLog) Update(ctx context.Context) error {
 		"workout_logs/update",
 		wl.ID, wl.Reps, wl.Weight, wl.RPE, wl.DurationSeconds,
 		wl.Grade, wl.Completed, wl.Attempts, wl.Notes,
+		wl.Distance, wl.Height,
 	)
 	if err != nil {
 		return err

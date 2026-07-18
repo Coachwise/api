@@ -43,6 +43,9 @@ type ConfigType struct {
 		// support message — the admin then answers from the admin panel. When
 		// empty, the ping is logged instead.
 		SupportWebhook string `mapstructure:"support_webhook"`
+		// Proxy for Discord traffic (blocked in Iran), e.g. "socks5://127.0.0.1:1080".
+		// Empty = respect the *_PROXY env vars.
+		Proxy string `mapstructure:"proxy"`
 	} `mapstructure:"discord"`
 	// Nats is the message queue used to fan events out to consumers (DB-insert
 	// now; push / email / SMS later). When URL is empty the queue is disabled and
