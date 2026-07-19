@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -175,6 +176,9 @@ func plansGroup(router *gin.Engine) {
 		if p.UserID != user.ID {
 			Abort(c, CodeNotOwner)
 			return
+		}
+		if form.RestTime <= 0 {
+			form.RestTime = time.Second
 		}
 		pe := &models.PlanExercise{
 			PlanID:        planID,

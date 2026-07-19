@@ -109,8 +109,10 @@ type UpdatePlanForm struct {
 type PlanExerciseForm struct {
 	ExerciseID    uuid.UUID     `json:"exercise_id" binding:"required"`
 	ExerciseOrder int           `json:"exercise_order" binding:"required"`
-	RestTime      time.Duration `json:"rest_time" binding:"required"`
-	Intensity     int           `json:"intensity" binding:"required"`
+	// Not required: a 0 (or omitted) rest is valid and clamped to a 1s minimum
+	// by the handler, so `binding:"required"` must not reject it.
+	RestTime  time.Duration `json:"rest_time"`
+	Intensity int           `json:"intensity" binding:"required"`
 }
 
 type PlanAssignForm struct {

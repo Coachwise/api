@@ -33,8 +33,14 @@ func userGroup(router *gin.Engine) {
 
 		search := c.Query("search")
 		coachOnly := c.Query("coach_only") == "true"
+		// Optional sport filter (coaches only). Only the known enum values are
+		// honoured; anything else is treated as "no filter".
+		var sport *string
+		if s := c.Query("sport"); s == "FITNESS" || s == "CLIMBING" || s == "THERAPEUTIC" {
+			sport = &s
+		}
 
-		items, total, err := models.ListUsersPaginated(ctx.(context.Context), search, coachOnly, user.ID, page.(database.Paginate))
+		items, total, err := models.ListUsersPaginated(ctx.(context.Context), search, coachOnly, sport, user.ID, page.(database.Paginate))
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return

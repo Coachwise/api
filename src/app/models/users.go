@@ -235,7 +235,7 @@ func GetOrCreatePhoneUser(ctx context.Context, phone string) (*User, error) {
 // ListUsersPaginated searches users by username or full name. When coachOnly is
 // true it returns only users flagged as coaches; excludeID drops that user from
 // the results (used to hide the requester from their own search).
-func ListUsersPaginated(ctx context.Context, search string, coachOnly bool, excludeID uuid.UUID, p database.Paginate) ([]User, int, error) {
+func ListUsersPaginated(ctx context.Context, search string, coachOnly bool, sport *string, excludeID uuid.UUID, p database.Paginate) ([]User, int, error) {
 	var (
 		items     = []User{}
 		fetchList []database.FetchList
@@ -243,7 +243,7 @@ func ListUsersPaginated(ctx context.Context, search string, coachOnly bool, excl
 		total     int
 	)
 
-	if err := database.QuerySelect("users/list", &fetchList, toTSQueryPrefix(search), coachOnly, excludeID, p.Limit, p.Offset); err != nil {
+	if err := database.QuerySelect("users/list", &fetchList, toTSQueryPrefix(search), coachOnly, excludeID, p.Limit, p.Offset, sport); err != nil {
 		return nil, 0, err
 	}
 
