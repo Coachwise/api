@@ -156,6 +156,9 @@ func userGroup(router *gin.Engine) {
 		if form.AvatarID != nil {
 			user.AvatarID = form.AvatarID
 		}
+			if form.Gender != nil {
+				user.Gender = *form.Gender
+			}
 		if form.Website != nil {
 			user.Website = emptyToNil(*form.Website)
 		}

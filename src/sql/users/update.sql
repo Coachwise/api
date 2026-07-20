@@ -9,5 +9,6 @@ UPDATE users
         website=$9,
         instagram=$10,
         birthday=$11,
+        gender=$12,
         updated_at=NOW()
 WHERE id=$1

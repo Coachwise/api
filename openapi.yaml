@@ -1061,6 +1061,10 @@ components:
         last_name:
           type: string
           nullable: true
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNSPECIFIED]
+          description: Collected at onboarding; drives the default UI theme.
         phone:
           type: string
           nullable: true
@@ -1102,6 +1106,9 @@ components:
           type: string
         username:
           type: string
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNSPECIFIED]
     Exercise:
       type: object
       properties:

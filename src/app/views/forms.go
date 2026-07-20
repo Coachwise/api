@@ -206,6 +206,8 @@ type ProfileForm struct {
 	Instagram *string    `json:"instagram"`
 	// Birthday is an ISO date "YYYY-MM-DD" (or "" to clear).
 	Birthday *string `json:"birthday"`
+	// Gender is one of MALE | FEMALE | UNSPECIFIED (drives the default theme).
+	Gender *string `json:"gender" binding:"omitempty,oneof=MALE FEMALE UNSPECIFIED"`
 }
 
 // Billing / wallet request bodies.

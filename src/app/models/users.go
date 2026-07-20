@@ -20,6 +20,7 @@ type User struct {
 	Bio             *string    `db:"bio" json:"bio"`
 	FirstName       *string    `db:"first_name" json:"first_name"`
 	LastName        *string    `db:"last_name" json:"last_name"`
+	Gender          string     `db:"gender" json:"gender"`
 	Phone           *string    `db:"phone" json:"phone"`
 	Website         *string    `db:"website" json:"website"`
 	Instagram       *string    `db:"instagram" json:"instagram"`
@@ -132,7 +133,7 @@ func (u *User) Update(ctx context.Context) error {
 		ctx,
 		"users/update",
 		u.ID, u.FirstName, u.LastName, u.Bio, u.JobTitle, u.Phone, u.Username, u.AvatarID,
-		u.Website, u.Instagram, u.Birthday,
+		u.Website, u.Instagram, u.Birthday, u.Gender,
 	)
 	if err != nil {
 		return err
