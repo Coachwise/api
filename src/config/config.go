@@ -53,6 +53,12 @@ type ConfigType struct {
 	Nats struct {
 		URL string `mapstructure:"url"`
 	} `mapstructure:"nats"`
+	// Metrics writes a Prometheus-text snapshot of the app's HTTP, database and
+	// runtime metrics to File, rewritten in place every minute (latest snapshot
+	// only, no history). Empty File disables the writer.
+	Metrics struct {
+		File string `mapstructure:"file"`
+	} `mapstructure:"metrics"`
 	// SMS gateways for OTP codes, chosen by the recipient's country (dial code) —
 	// like the payments providers. Kavenegar handles Iran (+98); SendGrid (or
 	// another) covers the rest later. No matching provider → the code is logged

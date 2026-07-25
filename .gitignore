@@ -5,3 +5,5 @@
 uploads/
 uploads_test/
 tmp/
+# Runtime metrics snapshot (rewritten every minute)
+metrics.prom

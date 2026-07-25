@@ -76,6 +76,10 @@ func Init() *gin.Engine {
 	// Apply CORS middleware
 	router.Use(cors.New(corsConfig))
 
+	// Record HTTP request count + latency. Placed after /ws so the long-lived
+	// websocket isn't timed as a normal request, and it labels by matched route.
+	router.Use(views.Metrics())
+
 	router.Use(func(c *gin.Context) {
 		// The clock starts when the headers arrive, before the body is read. Two
 		// seconds is plenty for a JSON request, but an upload spends most of that

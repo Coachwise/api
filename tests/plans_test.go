@@ -64,7 +64,7 @@ func plansGroup() {
 			}
 		})
 
-		It("should create a public plan", func() {
+		It("forces user-created plans to be personal (public not client-settable)", func() {
 			w := httptest.NewRecorder()
 			reqBody, _ := json.Marshal(gin.H{
 				"name":   "Public Climbing Plan",
@@ -77,7 +77,7 @@ func plansGroup() {
 
 			if w.Code == 201 {
 				body := decodeBody(w.Body)
-				Expect(body["public"]).To(Equal(true))
+				Expect(body["public"]).To(Equal(false))
 			}
 		})
 

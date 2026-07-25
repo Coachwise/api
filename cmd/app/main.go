@@ -6,6 +6,7 @@ import (
 	"coachwise/src/app/ws"
 	"coachwise/src/config"
 	"coachwise/src/events"
+	"coachwise/src/metrics"
 	"coachwise/src/payments"
 	"coachwise/src/sms"
 	"coachwise/src/storage"
@@ -38,6 +39,10 @@ func main() {
 	sms.Init()
 	storage.Init()
 	ws.Start()
+
+	// Flush a Prometheus-text snapshot of all metrics to the configured file
+	// every minute (in place, no history). Empty file disables it.
+	metrics.StartSnapshotWriter(config.Config.Metrics.File, time.Minute)
 
 	app.Serve()
 }

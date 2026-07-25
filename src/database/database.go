@@ -14,6 +14,8 @@ import (
 	"log"
 	"time"
 
+	"coachwise/src/metrics"
+
 	"github.com/jeyem/godatabase"
 	"github.com/jmoiron/sqlx"
 )
@@ -74,36 +76,51 @@ func DropDatabase(url string) error {
 
 // Query runs a named query and returns rows for manual scanning.
 func Query(ctx context.Context, queryName string, args ...interface{}) (*sqlx.Rows, error) {
+	start := time.Now()
 	rows, err := db.Query(ctx, queryName, args...)
+	metrics.ObserveQuery(queryName, time.Since(start), err)
 	return rows, logErr(queryName, err)
 }
 
 // QuerySelect runs a named query into a slice.
 func QuerySelect(queryName string, dest interface{}, args ...interface{}) error {
-	return logErr(queryName, db.Select(context.Background(), dest, queryName, args...))
+	start := time.Now()
+	err := db.Select(context.Background(), dest, queryName, args...)
+	metrics.ObserveQuery(queryName, time.Since(start), err)
+	return logErr(queryName, err)
 }
 
 // Get runs a named query expected to return exactly one row.
 func Get(dest interface{}, queryName string, args ...interface{}) error {
-	return logErr(queryName, db.Get(context.Background(), dest, queryName, args...))
+	start := time.Now()
+	err := db.Get(context.Background(), dest, queryName, args...)
+	metrics.ObserveQuery(queryName, time.Since(start), err)
+	return logErr(queryName, err)
 }
 
 // Fetch loads records by id. The query name comes from the destination's
 // FetchQuery, so dest must implement godatabase.Model.
 func Fetch(dest interface{}, ids ...interface{}) error {
-	return logErr("fetch", db.Fetch(context.Background(), dest, ids...))
+	start := time.Now()
+	err := db.Fetch(context.Background(), dest, ids...)
+	metrics.ObserveQuery("fetch", time.Since(start), err)
+	return logErr("fetch", err)
 }
 
 // TxQuery runs a named query inside tx and returns rows.
 func TxQuery(ctx context.Context, tx *sqlx.Tx, queryName string, args ...interface{}) (*sqlx.Rows, error) {
+	start := time.Now()
 	rows, err := db.TxQuery(ctx, tx, queryName, args...)
+	metrics.ObserveQuery(queryName, time.Since(start), err)
 	return rows, logErr(queryName, err)
 }
 
 // TxExecuteQuery runs a named write query inside tx, binding the named
 // parameters (:id, :email) from data.
 func TxExecuteQuery(tx *sqlx.Tx, queryName string, data interface{}) (sql.Result, error) {
+	start := time.Now()
 	res, err := db.TxExec(context.Background(), tx, queryName, data)
+	metrics.ObserveQuery(queryName, time.Since(start), err)
 	return res, logErr(queryName, err)
 }
 

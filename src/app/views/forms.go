@@ -96,14 +96,15 @@ type MessageForm struct {
 	MediaID     *string `json:"media_id"`
 }
 
+// Plans are always personal through the API — there is no client-settable
+// `public`. The public column is kept for a future platform-curated public
+// library (seeder/admin only), never user-writable.
 type CreatePlanForm struct {
-	Name   string `json:"name" binding:"required"`
-	Public bool   `json:"public"`
+	Name string `json:"name" binding:"required"`
 }
 
 type UpdatePlanForm struct {
-	Name   *string `json:"name"`
-	Public *bool   `json:"public"`
+	Name *string `json:"name"`
 }
 
 type PlanExerciseForm struct {

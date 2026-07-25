@@ -27,8 +27,11 @@ func plansGroup(router *gin.Engine) {
 			return
 		}
 
-		// Free users can only have 2 personal (non-public) plans
-		if !user.Pro && !form.Public {
+		// Plans created through the API are always personal. Free users are capped
+		// at 2 plans, full stop — there is no way to make a plan public (which is
+		// how a user previously both leaked a plan into everyone's list and dodged
+		// this limit). A curated public library stays seeder/admin only.
+		if !user.Pro {
 			ctx := c.MustGet("ctx")
 			count, err := models.CountPersonalPlans(ctx.(context.Context), user.ID)
 			if err != nil {
@@ -43,7 +46,7 @@ func plansGroup(router *gin.Engine) {
 
 		p := &models.Plan{
 			UserID: user.ID,
-			Public: form.Public,
+			Public: false,
 			Name:   form.Name,
 		}
 		ctx := c.MustGet("ctx")
@@ -119,9 +122,7 @@ func plansGroup(router *gin.Engine) {
 		if form.Name != nil {
 			p.Name = *form.Name
 		}
-		if form.Public != nil {
-			p.Public = *form.Public
-		}
+		// `public` is intentionally not user-settable (see CreatePlanForm).
 		if err := p.Update(ctx.(context.Context)); err != nil {
 			AbortServer(c, err)
 			return
