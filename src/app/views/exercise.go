@@ -9,7 +9,6 @@ import (
 	"html"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -87,12 +86,7 @@ func exerciseGroup(router *gin.Engine) {
 			return
 		}
 		if form.Sets == nil {
-			form.Sets = []struct {
-				Name     string         `json:"name"`
-				RestTime time.Duration  `json:"rest_time"`
-				RepCount *int           `json:"rep_count"`
-				Duration *time.Duration `json:"duration"`
-			}{}
+			form.Sets = []SetForm{}
 		}
 		if err := validateExerciseForm(form); err != nil {
 			AbortValidation(c, err)
@@ -174,12 +168,7 @@ func exerciseGroup(router *gin.Engine) {
 			return
 		}
 		if form.Sets == nil {
-			form.Sets = []struct {
-				Name     string         `json:"name"`
-				RestTime time.Duration  `json:"rest_time"`
-				RepCount *int           `json:"rep_count"`
-				Duration *time.Duration `json:"duration"`
-			}{}
+			form.Sets = []SetForm{}
 		}
 		if err := validateExerciseForm(form); err != nil {
 			AbortValidation(c, err)

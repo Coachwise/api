@@ -172,6 +172,89 @@ func plansGroup() {
 			}
 		})
 
+		It("stores a per-plan set prescription independent of the exercise's own sets", func() {
+			if len(exerciseIds) == 0 {
+				Skip("no exercises seeded")
+			}
+			// Use a dedicated plan so earlier specs' additions to the shared plan
+			// don't collide with this exercise's rows.
+			pw := httptest.NewRecorder()
+			pbody, _ := json.Marshal(gin.H{"name": "Prescription Plan"})
+			preq, _ := http.NewRequest("POST", "/plans", bytes.NewBuffer(pbody))
+			preq.Header.Set("Content-Type", "application/json")
+			preq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(pw, preq)
+			Expect(pw.Code).To(Equal(201))
+			rxPlanId := decodeBody(pw.Body)["id"].(string)
+
+			// The exercise was created with 2 default sets. Prescribe a different
+			// shape (3 sets) on the plan-exercise — it must not touch the exercise.
+			w := httptest.NewRecorder()
+			reqBody, _ := json.Marshal(gin.H{
+				"exercise_id":    exerciseIds[0],
+				"exercise_order": 1,
+				"rest_time":      90e9,
+				"intensity":      6,
+				"sets": []gin.H{
+					{"name": "P1", "rest_time": 20e9, "rep_count": 8},
+					{"name": "P2", "rest_time": 25e9, "rep_count": 6},
+					{"rest_time": 0, "duration": 30e9},
+				},
+			})
+			req, _ := http.NewRequest("POST", fmt.Sprintf("/plans/%s/exercises", rxPlanId), bytes.NewBuffer(reqBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(BeNumerically(">=", 200))
+			Expect(w.Code).To(BeNumerically("<", 300))
+
+			// Fetch and confirm the prescription round-trips in set_number order,
+			// with 3 sets (not the exercise's 2 defaults).
+			g := httptest.NewRecorder()
+			greq, _ := http.NewRequest("GET", fmt.Sprintf("/plans/%s/exercises", rxPlanId), nil)
+			greq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(g, greq)
+			Expect(g.Code).To(Equal(200))
+
+			var items []struct {
+				ExerciseID string `json:"exercise_id"`
+				Sets       []struct {
+					SetNumber int    `json:"set_number"`
+					RepCount  *int   `json:"rep_count"`
+					Duration  *int64 `json:"duration"`
+					RestTime  int64  `json:"rest_time"`
+				} `json:"sets"`
+			}
+			Expect(json.NewDecoder(g.Body).Decode(&items)).To(Succeed())
+
+			var found bool
+			for _, it := range items {
+				if it.ExerciseID != exerciseIds[0] {
+					continue
+				}
+				found = true
+				Expect(it.Sets).To(HaveLen(3))
+				Expect(it.Sets[0].SetNumber).To(Equal(1))
+				Expect(*it.Sets[0].RepCount).To(Equal(8))
+				Expect(it.Sets[2].SetNumber).To(Equal(3))
+				Expect(*it.Sets[2].Duration).To(Equal(int64(30e9)))
+			}
+			Expect(found).To(BeTrue())
+
+			// The exercise's own default sets are untouched (still 2).
+			e := httptest.NewRecorder()
+			ereq, _ := http.NewRequest("GET", fmt.Sprintf("/exercises/%s", exerciseIds[0]), nil)
+			ereq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(e, ereq)
+			if e.Code == 200 {
+				var ex struct {
+					Sets []interface{} `json:"sets"`
+				}
+				Expect(json.NewDecoder(e.Body).Decode(&ex)).To(Succeed())
+				Expect(ex.Sets).To(HaveLen(2))
+			}
+		})
+
 		It("should remove exercise from plan", func() {
 			if planId != "" && len(exerciseIds) > 0 {
 				w := httptest.NewRecorder()

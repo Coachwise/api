@@ -49,6 +49,21 @@ type PlanExercise struct {
 	Intensity     int            `db:"intensity" json:"intensity"` // 1-10 scale
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	Exercise      types.JSONText `db:"exercise" json:"exercise"`
+	// Sets is this plan-exercise's own prescription (from plan_exercise_sets),
+	// seeded from the exercise's default sets on add. Raw JSON passthrough to the
+	// client, like Exercise above.
+	Sets types.JSONText `db:"sets" json:"sets"`
+}
+
+// PlanExerciseSet is one prescribed set for an exercise within a plan. Rows are
+// written via the named bulk-insert query (plans/exercises/create_sets).
+type PlanExerciseSet struct {
+	PlanExerciseID uuid.UUID      `db:"plan_exercise_id"`
+	Name           *string        `db:"name"`
+	SetNumber      int            `db:"set_number"`
+	RestTime       time.Duration  `db:"rest_time"`
+	RepCount       *int           `db:"rep_count"`
+	Duration       *time.Duration `db:"duration"`
 }
 
 type PlanAssignee struct {
@@ -165,22 +180,43 @@ func GetPlanForUser(ctx context.Context, planID, userID uuid.UUID) (*Plan, error
 	return p, nil
 }
 
-func AddPlanExercise(ctx context.Context, pe *PlanExercise) error {
-	rows, err := database.Query(
+// AddPlanExercise inserts a plan-exercise and its prescription sets in one tx.
+// set_number is assigned from the slice order; pass nil/empty sets to add an
+// exercise with no prescription yet.
+func AddPlanExercise(ctx context.Context, pe *PlanExercise, sets []PlanExerciseSet) error {
+	tx, err := database.GetDB().Beginx()
+	if err != nil {
+		return err
+	}
+	rows, err := database.TxQuery(
 		ctx,
+		tx,
 		"plans/exercises/create",
 		pe.ExerciseID, pe.PlanID, pe.ExerciseOrder, pe.RestTime, pe.Intensity,
 	)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		if err := rows.StructScan(pe); err != nil {
+			tx.Rollback()
 			return err
 		}
 	}
-	return nil
+	rows.Close()
+
+	for i := range sets {
+		sets[i].PlanExerciseID = pe.ID
+		sets[i].SetNumber = i + 1
+	}
+	if len(sets) > 0 {
+		if _, err := database.TxExecuteQuery(tx, "plans/exercises/create_sets", sets); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func ListPlanExercises(ctx context.Context, planID uuid.UUID) ([]PlanExercise, error) {

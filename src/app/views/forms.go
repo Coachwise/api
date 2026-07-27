@@ -7,6 +7,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// SetForm is one set in a create payload — shared by ExerciseForm (the exercise's
+// default sets) and PlanExerciseForm (a plan-exercise's prescription).
+type SetForm struct {
+	Name     string         `json:"name"`
+	RestTime time.Duration  `json:"rest_time"`
+	RepCount *int           `json:"rep_count"`
+	Duration *time.Duration `json:"duration"`
+}
+
 type ExerciseForm struct {
 	Name        string                    `json:"name"`
 	Description string                    `json:"description"`
@@ -14,16 +23,11 @@ type ExerciseForm struct {
 	MediaID     *uuid.UUID                `json:"media_id"`
 	// Which extra metrics the exercise tracks. Pointers so an omitted flag falls
 	// back to a default (weight on, the rest off) rather than forcing false.
-	TrackWeight   *bool `json:"track_weight"`
-	TrackDistance *bool `json:"track_distance"`
-	TrackGrade    *bool `json:"track_grade"`
-	TrackHeight   *bool `json:"track_height"`
-	Sets          []struct {
-		Name     string         `json:"name"`
-		RestTime time.Duration  `json:"rest_time"`
-		RepCount *int           `json:"rep_count"`
-		Duration *time.Duration `json:"duration"`
-	} `json:"sets"`
+	TrackWeight   *bool     `json:"track_weight"`
+	TrackDistance *bool     `json:"track_distance"`
+	TrackGrade    *bool     `json:"track_grade"`
+	TrackHeight   *bool     `json:"track_height"`
+	Sets          []SetForm `json:"sets"`
 }
 
 type CreateSessionForm struct {
@@ -114,6 +118,10 @@ type PlanExerciseForm struct {
 	// by the handler, so `binding:"required"` must not reject it.
 	RestTime  time.Duration `json:"rest_time"`
 	Intensity int           `json:"intensity" binding:"required"`
+	// This exercise's prescription within the plan (its own sets/reps/rest),
+	// seeded client-side from the exercise's default sets. Optional: an omitted
+	// array adds the exercise with no prescription yet.
+	Sets []SetForm `json:"sets"`
 }
 
 type PlanAssignForm struct {

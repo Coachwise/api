@@ -5,6 +5,7 @@ import (
 	"coachwise/src/app/models"
 	"coachwise/src/events"
 	"context"
+	"html"
 	"net/http"
 	"strconv"
 	"time"
@@ -188,7 +189,20 @@ func plansGroup(router *gin.Engine) {
 			RestTime:      form.RestTime,
 			Intensity:     form.Intensity,
 		}
-		if err := models.AddPlanExercise(ctx.(context.Context), pe); err != nil {
+		sets := make([]models.PlanExerciseSet, 0, len(form.Sets))
+		for _, s := range form.Sets {
+			set := models.PlanExerciseSet{
+				RepCount: s.RepCount,
+				Duration: s.Duration,
+				RestTime: s.RestTime,
+			}
+			if s.Name != "" {
+				name := html.EscapeString(s.Name)
+				set.Name = &name
+			}
+			sets = append(sets, set)
+		}
+		if err := models.AddPlanExercise(ctx.(context.Context), pe, sets); err != nil {
 			AbortServer(c, err)
 			return
 		}

@@ -1,4 +1,15 @@
 SELECT pe.*,
+  COALESCE((SELECT jsonb_agg(json_build_object(
+      'id', ps.id,
+      'name', ps.name,
+      'duration', ps.duration,
+      'rep_count', ps.rep_count,
+      'rest_time', ps.rest_time,
+      'set_number', ps.set_number,
+      'created_at', ps.created_at,
+      'updated_at', ps.updated_at
+    ) ORDER BY ps.set_number)
+   FROM plan_exercise_sets ps WHERE ps.plan_exercise_id = pe.id), '[]'::jsonb) AS sets,
   json_build_object(
     'id', e.id,
     'name', e.name,
