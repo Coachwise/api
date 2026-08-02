@@ -105,6 +105,8 @@ func messageGroup(router *gin.Engine) {
 		}
 		if directPeer != nil {
 			events.EmitSignal(*directPeer, "messages") // recipient's thread refreshes live
+			entity := "chat"
+			events.EmitNotification(*directPeer, &user.ID, models.NotifMessageReceived, &entity, &chatID, nil)
 		}
 		c.JSON(http.StatusOK, msg)
 	})

@@ -67,10 +67,12 @@ var _ = Describe("coachwise Test Suite", func() {
 	Context("Media", mediaGroup)
 	Context("Messages", messagesGroup)
 	Context("Support", supportGroup)
+	Context("Devices", devicesGroup)
 	Context("Edge Cases", edgeCasesGroup)
 	Context("Resilience", resilienceGroup)
 	Context("SoftDelete", softDeleteGroup)
 	Context("Refunds", refundGroup)
+	Context("AI", aiFlowGroup)
 })
 
 func init() {

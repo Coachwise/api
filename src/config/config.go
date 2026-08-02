@@ -100,6 +100,24 @@ type ConfigType struct {
 			Logo string `mapstructure:"logo"`
 		} `mapstructure:"providers"`
 	} `mapstructure:"payments"`
+	// LLM: text backend for the AI assistant, model-agnostic (stub | huggingface).
+	LLM struct {
+		Provider      string  `mapstructure:"provider"`
+		BaseURL       string  `mapstructure:"base_url"`
+		Model         string  `mapstructure:"model"`
+		APIKey        string  `mapstructure:"api_key"`
+		MaxTokens     int     `mapstructure:"max_tokens"`
+		Temperature   float64 `mapstructure:"temperature"`
+		MaxIterations int     `mapstructure:"max_iterations"` // read-loop cap per turn
+	} `mapstructure:"llm"`
+	// Push: mobile notifications via FCM (iOS through APNs). Empty provider
+	// disables it. Proxy is needed wherever Google is unreachable.
+	Push struct {
+		Provider        string `mapstructure:"provider"`
+		ProjectID       string `mapstructure:"project_id"`
+		CredentialsFile string `mapstructure:"credentials_file"`
+		Proxy           string `mapstructure:"proxy"`
+	} `mapstructure:"push"`
 }
 
 func Init(configPath string) {

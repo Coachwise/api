@@ -2,6 +2,7 @@ package views
 
 import (
 	"coachwise/src/app/models"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -301,4 +302,35 @@ type ClientErrorForm struct {
 	Platform  string `json:"platform" binding:"max=40"` // web | android | ios
 	Language  string `json:"language" binding:"max=10"`
 	RequestID string `json:"request_id" binding:"max=64"` // the API request that failed, if any
+}
+
+// AIMessageForm is a user turn sent to the assistant.
+type AIMessageForm struct {
+	Text string `json:"text" binding:"required,max=4000"`
+}
+
+// AIStartForm opens a conversation, optionally with a first message.
+type AIStartForm struct {
+	Title *string `json:"title" binding:"omitempty,max=200"`
+	Text  string  `json:"text" binding:"max=4000"`
+}
+
+// AIResultForm reports the outcome of client-executed write actions, aligned by
+// index to the assistant message's proposals, so the agent can continue.
+type AIResultForm struct {
+	Results []AIActionResult `json:"results" binding:"required"`
+}
+
+type AIActionResult struct {
+	OK     bool            `json:"ok"`
+	Result json.RawMessage `json:"result"`
+	Error  string          `json:"error" binding:"max=1000"`
+}
+
+// DeviceForm registers a push token and unregisters it on logout; platform is
+// only read on register.
+type DeviceForm struct {
+	Token    string `json:"token" binding:"required,max=512"`
+	Platform string `json:"platform" binding:"max=16"`
+	Locale   string `json:"locale" binding:"max=8"`
 }

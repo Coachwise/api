@@ -891,6 +891,50 @@ paths:
       responses:
         "200":
           description: Success
+  /devices:
+    post:
+      summary: Register a push token (idempotent; called on every app launch)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, platform]
+              properties:
+                token:
+                  type: string
+                  description: FCM registration token
+                platform:
+                  type: string
+                  enum: [android, ios, web]
+                locale:
+                  type: string
+                  description: Language selected in the app (fa/en)
+      responses:
+        "200":
+          description: Registered
+        "400":
+          description: Invalid platform
+    delete:
+      summary: Unregister a push token (logout)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        "200":
+          description: Unregistered
   /coaches/apply:
     post:
       summary: Submit a coach application

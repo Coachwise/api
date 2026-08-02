@@ -24,6 +24,7 @@ const (
 	NotifPlanRemoved         = "PLAN_REMOVED"       // coach unassigned a plan → notify client
 	NotifSupportReply        = "SUPPORT_REPLY"      // support answered a ticket → notify the user
 	NotifSupportUpdate       = "SUPPORT_UPDATE"     // a ticket's status changed (e.g. closed) → notify the user
+	NotifMessageReceived     = "MESSAGE_RECEIVED"   // direct message → notify the recipient
 )
 
 // Notification is one in-app event for a recipient. The client renders localized
@@ -53,7 +54,13 @@ func InsertNotification(ctx context.Context, userID uuid.UUID, actorID *uuid.UUI
 	if len(data) == 0 {
 		data = []byte("{}")
 	}
-	rows, err := database.Query(ctx, "notifications/create", userID, actorID, typ, entityType, entityID, string(data))
+	// Chats would otherwise stack one row per message; collapse into the sender's
+	// existing unread one.
+	query := "notifications/create"
+	if typ == NotifMessageReceived {
+		query = "notifications/create_collapsed"
+	}
+	rows, err := database.Query(ctx, query, userID, actorID, typ, entityType, entityID, string(data))
 	if err != nil {
 		return err
 	}

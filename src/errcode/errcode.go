@@ -63,6 +63,10 @@ const (
 	// The coach owes money back: a refund clawed back more than was left in the
 	// wallet. Withdrawals wait until that's settled.
 	CodeBalanceNegative ErrCode = 1309
+
+	// AI assistant (1400+)
+	CodeAIDisabled ErrCode = 1400 // no model configured
+	CodeAIFailed   ErrCode = 1401 // the turn errored or produced no answer
 )
 
 type meta struct {
@@ -109,6 +113,9 @@ var codeMeta = map[ErrCode]meta{
 	CodeNoProvider:             {http.StatusBadRequest, "Payment method not available"},
 	CodePayoutAccountMissing:   {http.StatusBadRequest, "Set up a payout account first"},
 	CodeBalanceNegative:        {http.StatusBadRequest, "Your balance is negative after a refund; it must be settled before a payout"},
+
+	CodeAIDisabled: {http.StatusServiceUnavailable, "AI assistant is not available"},
+	CodeAIFailed:   {http.StatusInternalServerError, "The assistant couldn't complete this"},
 }
 
 var statusCode = map[int]ErrCode{

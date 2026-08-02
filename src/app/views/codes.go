@@ -47,6 +47,9 @@ const (
 	CodeNoProvider             = errcode.CodeNoProvider
 	CodePayoutAccountMissing   = errcode.CodePayoutAccountMissing
 	CodeBalanceNegative        = errcode.CodeBalanceNegative
+
+	CodeAIDisabled = errcode.CodeAIDisabled
+	CodeAIFailed   = errcode.CodeAIFailed
 )
 
 var (

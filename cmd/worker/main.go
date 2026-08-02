@@ -8,6 +8,8 @@ import (
 	"coachwise/src/alert"
 	"coachwise/src/config"
 	"coachwise/src/events"
+	"coachwise/src/llm"
+	"coachwise/src/push"
 	"coachwise/src/sms"
 	"coachwise/src/utils"
 	"log"
@@ -34,10 +36,14 @@ func main() {
 	events.InitSupport(config.Config.Discord.SupportWebhook)
 	events.Connect(config.Config.Nats.URL)
 	sms.Init()
+	llm.Init()
+	push.Init()
 	events.StartNotificationConsumer()
+	events.StartPushConsumer()
 	events.StartSMSConsumer()
 	events.StartAlertConsumer()
 	events.StartSupportConsumer()
+	events.StartAIConsumer()
 	// The panel can't emit events, so this loop turns admin replies (written
 	// straight to the DB) into user notifications + refetch signals.
 	events.StartSupportDeliveryLoop(8 * time.Second)

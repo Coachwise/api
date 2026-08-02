@@ -6,6 +6,7 @@ import (
 	"coachwise/src/app/ws"
 	"coachwise/src/config"
 	"coachwise/src/events"
+	"coachwise/src/llm"
 	"coachwise/src/metrics"
 	"coachwise/src/payments"
 	"coachwise/src/sms"
@@ -38,6 +39,7 @@ func main() {
 	payments.Init()
 	sms.Init()
 	storage.Init()
+	llm.Init()
 	ws.Start()
 
 	// Flush a Prometheus-text snapshot of all metrics to the configured file

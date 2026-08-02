@@ -29,6 +29,7 @@ func Init(r *gin.Engine) {
 	testsGroup(r)
 	achievementGroup(r)
 	notificationGroup(r)
+	deviceGroup(r)
 	workoutsGroup(r)
 	workoutLogGroup(r)
 	tagGroup(r)
@@ -37,6 +38,7 @@ func Init(r *gin.Engine) {
 	messageGroup(r)
 	supportGroup(r)
 	telemetryGroup(r)
+	aiGroup(r)
 }
 
 func health(ctx *gin.Context) {
