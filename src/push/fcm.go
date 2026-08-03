@@ -75,12 +75,8 @@ func newFCM() (*fcmSender, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)
 	}
-	projectID := cfg.ProjectID
-	if projectID == "" {
-		projectID = sa.ProjectID
-	}
-	if projectID == "" {
-		return nil, fmt.Errorf("project_id missing from config and credentials")
+	if sa.ProjectID == "" {
+		return nil, fmt.Errorf("project_id missing from credentials")
 	}
 	tokenURI := sa.TokenURI
 	if tokenURI == "" {
@@ -97,7 +93,7 @@ func newFCM() (*fcmSender, error) {
 	}
 
 	return &fcmSender{
-		projectID: projectID,
+		projectID: sa.ProjectID,
 		email:     sa.ClientEmail,
 		keyID:     sa.PrivateKeyID,
 		key:       key,

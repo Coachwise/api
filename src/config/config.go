@@ -114,7 +114,6 @@ type ConfigType struct {
 	// disables it. Proxy is needed wherever Google is unreachable.
 	Push struct {
 		Provider        string `mapstructure:"provider"`
-		ProjectID       string `mapstructure:"project_id"`
 		CredentialsFile string `mapstructure:"credentials_file"`
 		Proxy           string `mapstructure:"proxy"`
 	} `mapstructure:"push"`
