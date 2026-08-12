@@ -26,3 +26,6 @@ SELECT e.*,
 FROM exercises e
 LEFT JOIN media m ON e.media_id = m.id
 WHERE e.id IN (?) AND e.deleted_at IS NULL
+-- Keep the order list.sql chose (yours first, then relevance, then newest);
+-- without this the rows come back in planner order.
+ORDER BY array_position(ARRAY[?]::uuid[], e.id)

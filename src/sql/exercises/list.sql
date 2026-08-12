@@ -7,6 +7,7 @@ WHERE deleted_at IS NULL
   AND ($5 = '' OR category_id = (SELECT id FROM exercise_categories WHERE slug = $5))
   AND ($6 = '' OR sport_type::text = $6)
 ORDER BY
+  COALESCE(user_id = $7, false) DESC,
   CASE WHEN $2 <> '' THEN ts_rank(search_vector, to_tsquery('simple', $2)) END DESC NULLS LAST,
   created_at DESC
 LIMIT $3 OFFSET $4;
