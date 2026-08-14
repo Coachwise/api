@@ -38,7 +38,100 @@ func validateExerciseForm(form *ExerciseForm) error {
 			return errors.New("rest_time cannot be negative")
 		}
 	}
+	return validateExerciseKind(form)
+}
+
+// validateExerciseKind checks the group half of the form. A group must say how
+// it repeats (a round count or a time cap) and carry at least one exercise; a
+// single exercise must carry none of that.
+func validateExerciseKind(form *ExerciseForm) error {
+	if form.Kind == "" || form.Kind == models.ExerciseKindSingle {
+		if len(form.Items) > 0 {
+			return errors.New("only a group exercise can contain items")
+		}
+		return nil
+	}
+	if form.Kind != models.ExerciseKindGroup {
+		return errors.New("kind must be SINGLE or GROUP")
+	}
+	if len(form.Items) == 0 {
+		return errors.New("a group must contain at least one exercise")
+	}
+	hasRounds := form.Rounds != nil && *form.Rounds > 0
+	hasDuration := form.RoundDuration != nil && *form.RoundDuration > 0
+	if hasRounds == hasDuration {
+		return errors.New("a group needs either rounds or round_duration, not both")
+	}
+	if form.RoundRest < 0 {
+		return errors.New("round_rest cannot be negative")
+	}
+	seen := make(map[uuid.UUID]bool, len(form.Items))
+	for _, it := range form.Items {
+		if it.RepCount != nil && it.Duration != nil {
+			return errors.New("item cannot have both rep_count and duration")
+		}
+		if it.RepCount == nil && it.Duration == nil {
+			return errors.New("item needs a rep_count or a duration")
+		}
+		if it.RepCount != nil && *it.RepCount < 0 {
+			return errors.New("rep_count cannot be negative")
+		}
+		if it.Duration != nil && *it.Duration < 0 {
+			return errors.New("duration cannot be negative")
+		}
+		if it.RestTime < 0 {
+			return errors.New("rest_time cannot be negative")
+		}
+		if seen[it.ExerciseID] {
+			return errors.New("an exercise can only appear once in a group")
+		}
+		seen[it.ExerciseID] = true
+	}
 	return nil
+}
+
+// resolveGroupItems turns the form's items into model rows, enforcing that each
+// child is visible to the user and is itself SINGLE — that one rule is what
+// keeps groups one level deep, so there is no cycle to detect.
+func resolveGroupItems(form *ExerciseForm, userID uuid.UUID, selfID uuid.UUID) ([]models.ExerciseItem, error) {
+	items := make([]models.ExerciseItem, 0, len(form.Items))
+	for _, it := range form.Items {
+		if it.ExerciseID == selfID {
+			return nil, errors.New("a group cannot contain itself")
+		}
+		child, err := models.GetExrcise(it.ExerciseID)
+		if err != nil {
+			return nil, errors.New("exercise not found")
+		}
+		if !exerciseVisibleTo(child, userID) {
+			return nil, errors.New("exercise not found")
+		}
+		if child.Kind == models.ExerciseKindGroup {
+			return nil, errors.New("a group cannot contain another group")
+		}
+		items = append(items, models.ExerciseItem{
+			ExerciseID: it.ExerciseID,
+			RepCount:   it.RepCount,
+			Duration:   it.Duration,
+			RestTime:   it.RestTime,
+		})
+	}
+	return items, nil
+}
+
+// applyExerciseKind copies the group half of the form onto the model, forcing a
+// non-group back to a clean SINGLE so switching kind can't leave stale rounds.
+func applyExerciseKind(ex *models.Exercise, form *ExerciseForm, items []models.ExerciseItem) {
+	if form.Kind != models.ExerciseKindGroup {
+		ex.Kind = models.ExerciseKindSingle
+		ex.Rounds, ex.RoundDuration, ex.RoundRest, ex.Items = nil, nil, 0, nil
+		return
+	}
+	ex.Kind = models.ExerciseKindGroup
+	ex.Rounds = form.Rounds
+	ex.RoundRest = form.RoundRest
+	ex.RoundDuration = form.RoundDuration
+	ex.Items = items
 }
 
 // applyExerciseMetrics copies the tracked-metric flags off the form, defaulting
@@ -92,6 +185,11 @@ func exerciseGroup(router *gin.Engine) {
 			AbortValidation(c, err)
 			return
 		}
+		items, err := resolveGroupItems(form, user.ID, uuid.Nil)
+		if err != nil {
+			AbortValidation(c, err)
+			return
+		}
 		ex := new(models.Exercise)
 		utils.Copy(form, ex)
 		ex.Name = html.EscapeString(ex.Name)
@@ -101,6 +199,7 @@ func exerciseGroup(router *gin.Engine) {
 		// library is curated via the seeder and admin panel, never the API.
 		ex.Public = false
 		applyExerciseMetrics(ex, form)
+		applyExerciseKind(ex, form, items)
 		for i := range ex.Sets {
 			ex.Sets[i].SetNumber = i + 1
 			safeName := html.EscapeString(form.Sets[i].Name)
@@ -112,7 +211,8 @@ func exerciseGroup(router *gin.Engine) {
 			return
 		}
 		status := http.StatusCreated
-		if len(ex.Sets) == 0 {
+		// A group carries items instead of sets, so it's still a real creation.
+		if len(ex.Sets) == 0 && len(ex.Items) == 0 {
 			status = http.StatusOK
 		}
 		c.JSON(status, ex)
@@ -174,10 +274,16 @@ func exerciseGroup(router *gin.Engine) {
 			AbortValidation(c, err)
 			return
 		}
+		items, err := resolveGroupItems(form, user.ID, ex.ID)
+		if err != nil {
+			AbortValidation(c, err)
+			return
+		}
 		utils.Copy(form, ex)
 		ex.Name = html.EscapeString(ex.Name)
 		ex.Description = html.EscapeString(ex.Description)
 		applyExerciseMetrics(ex, form)
+		applyExerciseKind(ex, form, items)
 		for i := range ex.Sets {
 			safeName := html.EscapeString(form.Sets[i].Name)
 			ex.Sets[i].Name = utils.StrPtr(safeName)

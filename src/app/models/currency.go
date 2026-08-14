@@ -21,6 +21,15 @@ type Currency struct {
 	Enabled  bool   `db:"enabled" json:"enabled"`
 }
 
+// DefaultCurrency is the platform's configured currency, used when input omits
+// one. Falls back to IRR when settings are unreadable or unset.
+func DefaultCurrency() string {
+	if s, err := GetPlatformSettings(); err == nil && s.DefaultCurrency != "" {
+		return s.DefaultCurrency
+	}
+	return "IRR"
+}
+
 // ListCurrencies returns the enabled currencies.
 func ListCurrencies() ([]Currency, error) {
 	currencies := []Currency{}

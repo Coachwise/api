@@ -255,6 +255,67 @@ func plansGroup() {
 			}
 		})
 
+		// A group is just an exercise to a plan, but the plan may override how many
+		// rounds it runs without touching the group everyone else uses.
+		It("carries a group's rounds and lets the plan override them", func() {
+			if len(exerciseIds) == 0 {
+				Skip("no exercises seeded")
+			}
+			post := func(path string, payload gin.H) *httptest.ResponseRecorder {
+				w := httptest.NewRecorder()
+				body, _ := json.Marshal(payload)
+				req, _ := http.NewRequest("POST", path, bytes.NewBuffer(body))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+				router.ServeHTTP(w, req)
+				return w
+			}
+
+			gw := post("/exercises", gin.H{
+				"name": "Plan circuit", "description": "circuit", "kind": "GROUP",
+				"rounds": 5, "round_rest": 90e9,
+				"items": []gin.H{{"exercise_id": exerciseIds[0], "rep_count": 15, "rest_time": 30e9}},
+			})
+			Expect(gw.Code).To(Equal(201))
+			groupID := decodeBody(gw.Body)["id"].(string)
+
+			pw := post("/plans", gin.H{"name": "Circuit Plan"})
+			Expect(pw.Code).To(Equal(201))
+			circuitPlanID := decodeBody(pw.Body)["id"].(string)
+
+			// The group defaults to 5 rounds; this plan runs it 3 times.
+			aw := post(fmt.Sprintf("/plans/%s/exercises", circuitPlanID), gin.H{
+				"exercise_id": groupID, "exercise_order": 1, "rest_time": 60e9,
+				"intensity": 5, "rounds": 3,
+			})
+			Expect(aw.Code).To(BeNumerically("<", 300))
+
+			g := httptest.NewRecorder()
+			greq, _ := http.NewRequest("GET", fmt.Sprintf("/plans/%s/exercises", circuitPlanID), nil)
+			greq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authTokens[0]))
+			router.ServeHTTP(g, greq)
+			Expect(g.Code).To(Equal(200))
+
+			var items []struct {
+				Rounds   *int `json:"rounds"`
+				Exercise struct {
+					Kind   string `json:"kind"`
+					Rounds *int   `json:"rounds"`
+					Items  []struct {
+						ItemOrder int  `json:"item_order"`
+						RepCount  *int `json:"rep_count"`
+					} `json:"items"`
+				} `json:"exercise"`
+			}
+			Expect(json.NewDecoder(g.Body).Decode(&items)).To(Succeed())
+			Expect(items).To(HaveLen(1))
+			Expect(items[0].Exercise.Kind).To(Equal("GROUP"))
+			Expect(*items[0].Rounds).To(Equal(3))    // the plan's override
+			Expect(*items[0].Exercise.Rounds).To(Equal(5)) // the group's own default
+			Expect(items[0].Exercise.Items).To(HaveLen(1))
+			Expect(*items[0].Exercise.Items[0].RepCount).To(Equal(15))
+		})
+
 		It("should remove exercise from plan", func() {
 			if planId != "" && len(exerciseIds) > 0 {
 				w := httptest.NewRecorder()

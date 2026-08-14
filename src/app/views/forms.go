@@ -29,6 +29,23 @@ type ExerciseForm struct {
 	TrackGrade    *bool     `json:"track_grade"`
 	TrackHeight   *bool     `json:"track_height"`
 	Sets          []SetForm `json:"sets"`
+	// A GROUP is a circuit: it performs Items in order and repeats them, either
+	// Rounds times or for RoundDuration. Empty Kind means SINGLE (a movement),
+	// so existing clients are unaffected.
+	Kind          string             `json:"kind"`
+	Rounds        *int               `json:"rounds"`
+	RoundRest     time.Duration      `json:"round_rest"`
+	RoundDuration *time.Duration     `json:"round_duration"`
+	Items         []ExerciseItemForm `json:"items"`
+}
+
+// ExerciseItemForm is one exercise inside a group, with its prescription for a
+// single round (reps or time, then rest before the next one).
+type ExerciseItemForm struct {
+	ExerciseID uuid.UUID      `json:"exercise_id" binding:"required"`
+	RepCount   *int           `json:"rep_count"`
+	Duration   *time.Duration `json:"duration"`
+	RestTime   time.Duration  `json:"rest_time"`
 }
 
 type CreateSessionForm struct {
@@ -119,6 +136,11 @@ type PlanExerciseForm struct {
 	// by the handler, so `binding:"required"` must not reject it.
 	RestTime  time.Duration `json:"rest_time"`
 	Intensity int           `json:"intensity" binding:"required"`
+	// Per-plan overrides for a GROUP exercise's rounds. Nil inherits the group's
+	// own values; ignored for a SINGLE exercise.
+	Rounds        *int           `json:"rounds"`
+	RoundRest     *time.Duration `json:"round_rest"`
+	RoundDuration *time.Duration `json:"round_duration"`
 	// This exercise's prescription within the plan (its own sets/reps/rest),
 	// seeded client-side from the exercise's default sets. Optional: an omitted
 	// array adds the exercise with no prescription yet.
@@ -131,9 +153,13 @@ type PlanAssignForm struct {
 
 // PackageForm is shared by package create and update (the payloads match).
 type PackageForm struct {
-	Name             string      `json:"name" binding:"required"`
+	Name string `json:"name" binding:"required"`
+	// Empty keeps the package's existing currency (the platform default on
+	// create), so older clients that don't send one are unaffected.
+	Currency         string      `json:"currency"`
 	Description      *string     `json:"description"`
 	PriceMonthly     *int        `json:"price_monthly"`
+	PriceQuarterly   *int        `json:"price_quarterly"`
 	PriceAnnual      *int        `json:"price_annual"`
 	PriceOneTime     *int        `json:"price_one_time"`
 	TrialDays        int         `json:"trial_days"`

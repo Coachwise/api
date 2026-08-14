@@ -26,6 +26,7 @@ type CoachPackage struct {
 	BillingType      string         `db:"billing_type" json:"billing_type"` // SUBSCRIPTION | ONE_TIME
 	Currency         string         `db:"currency" json:"currency"`
 	PriceMonthly     *int           `db:"price_monthly" json:"price_monthly,omitempty"`
+	PriceQuarterly   *int           `db:"price_quarterly" json:"price_quarterly,omitempty"`
 	PriceAnnual      *int           `db:"price_annual" json:"price_annual,omitempty"`
 	PriceOneTime     *int           `db:"price_one_time" json:"price_one_time,omitempty"`
 	TrialDays        int            `db:"trial_days" json:"trial_days"`
@@ -56,9 +57,9 @@ func (p *CoachPackage) Create(ctx context.Context) error {
 		ctx,
 		"packages/create",
 		p.CoachID, p.Name, p.Description,
-		p.PriceMonthly, p.PriceAnnual, p.PriceOneTime,
+		p.PriceMonthly, p.PriceQuarterly, p.PriceAnnual, p.PriceOneTime,
 		p.TrialDays, p.CheckInFrequency, p.VideoAccess, p.NutritionGuides,
-		p.CustomFeatures, p.IsActive, p.Popular,
+		p.CustomFeatures, p.IsActive, p.Popular, p.Currency,
 	)
 	if err != nil {
 		return err
@@ -77,9 +78,9 @@ func (p *CoachPackage) Update(ctx context.Context) error {
 		ctx,
 		"packages/update",
 		p.ID, p.Name, p.Description,
-		p.PriceMonthly, p.PriceAnnual, p.PriceOneTime,
+		p.PriceMonthly, p.PriceQuarterly, p.PriceAnnual, p.PriceOneTime,
 		p.TrialDays, p.CheckInFrequency, p.VideoAccess, p.NutritionGuides,
-		p.CustomFeatures, p.IsActive, p.Popular,
+		p.CustomFeatures, p.IsActive, p.Popular, p.Currency,
 	)
 	if err != nil {
 		return err

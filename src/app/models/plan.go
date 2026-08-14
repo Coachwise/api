@@ -47,6 +47,11 @@ type PlanExercise struct {
 	ExerciseOrder int            `db:"exercise_order" json:"exercise_order"`
 	RestTime      time.Duration  `db:"rest_time" json:"rest_time"`
 	Intensity     int            `db:"intensity" json:"intensity"` // 1-10 scale
+	// Per-plan overrides of a GROUP exercise's rounds; nil inherits the group's
+	// own. Meaningless for a SINGLE exercise.
+	Rounds        *int           `db:"rounds" json:"rounds"`
+	RoundRest     *time.Duration `db:"round_rest" json:"round_rest"`
+	RoundDuration *time.Duration `db:"round_duration" json:"round_duration"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	Exercise      types.JSONText `db:"exercise" json:"exercise"`
 	// Sets is this plan-exercise's own prescription (from plan_exercise_sets),
@@ -193,6 +198,7 @@ func AddPlanExercise(ctx context.Context, pe *PlanExercise, sets []PlanExerciseS
 		tx,
 		"plans/exercises/create",
 		pe.ExerciseID, pe.PlanID, pe.ExerciseOrder, pe.RestTime, pe.Intensity,
+		pe.Rounds, pe.RoundRest, pe.RoundDuration,
 	)
 	if err != nil {
 		tx.Rollback()

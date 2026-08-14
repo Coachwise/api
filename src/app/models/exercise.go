@@ -10,6 +10,7 @@ import (
 	"coachwise/src/database"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
 )
 
@@ -32,16 +33,49 @@ type Exercise struct {
 	TrackDistance bool `json:"track_distance" db:"track_distance"`
 	TrackGrade    bool `json:"track_grade" db:"track_grade"`
 	TrackHeight   bool `json:"track_height" db:"track_height"`
-	Media           *Media            `json:"media,omitempty" db:"-"`
-	Sets            []Set             `json:"sets" db:"-"`
-	CreatedAt       time.Time         `json:"created_at" db:"created_at"`
-	UpdatedAt       time.Time         `json:"updated_at" db:"updated_at"`
+	// SINGLE (a movement) or GROUP (a circuit that references other exercises
+	// and repeats them as rounds). Rounds/RoundRest/RoundDuration only apply to
+	// a GROUP: RoundDuration set means run for that long instead of a count.
+	Kind          string         `json:"kind" db:"kind"`
+	Rounds        *int           `json:"rounds" db:"rounds"`
+	RoundRest     time.Duration  `json:"round_rest" db:"round_rest"`
+	RoundDuration *time.Duration `json:"round_duration" db:"round_duration"`
+	Items         []ExerciseItem `json:"items" db:"-"`
+
+	Media     *Media    `json:"media,omitempty" db:"-"`
+	Sets      []Set     `json:"sets" db:"-"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 
 	SetsJson  types.JSONText `db:"sets" json:"-"`
 	MediaJson types.JSONText `db:"media" json:"-"`
+	ItemsJson types.JSONText `db:"items" json:"-"`
 	// Absorbs the generated tsvector column from `SELECT e.*`; not serialized.
 	SearchVector *string `db:"search_vector" json:"-"`
 	DeletedAt *time.Time `db:"deleted_at" json:"-"`
+}
+
+// ExerciseKind values.
+const (
+	ExerciseKindSingle = "SINGLE"
+	ExerciseKindGroup  = "GROUP"
+)
+
+// ExerciseItem is one child of a GROUP exercise: which exercise to perform in a
+// round, and its prescription for that round (one set, reps or time).
+type ExerciseItem struct {
+	ID         uuid.UUID      `json:"id" db:"id"`
+	GroupID    uuid.UUID      `json:"group_id" db:"group_id"`
+	ExerciseID uuid.UUID      `json:"exercise_id" db:"exercise_id"`
+	ItemOrder  int            `json:"item_order" db:"item_order"`
+	RepCount   *int           `json:"rep_count" db:"rep_count"`
+	Duration   *time.Duration `json:"duration" db:"duration"`
+	RestTime   time.Duration  `json:"rest_time" db:"rest_time"`
+	CreatedAt  time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at" db:"updated_at"`
+	// The referenced exercise, hydrated by fetch.sql so the runner has its name,
+	// media and track flags without a second call. Always SINGLE (one level).
+	Exercise *Exercise `json:"exercise,omitempty" db:"-"`
 }
 
 type Set struct {
@@ -93,6 +127,7 @@ func ListExercisesPaginated(ctx context.Context, viewerID uuid.UUID, public *boo
 	// the list carries media (animations) and sets like the detail endpoint does.
 	for i := range exercises {
 		_ = exercises[i].SetsJson.Unmarshal(&exercises[i].Sets)
+		_ = exercises[i].ItemsJson.Unmarshal(&exercises[i].Items)
 		_ = exercises[i].MediaJson.Unmarshal(&exercises[i].Media)
 	}
 
@@ -122,6 +157,28 @@ func toTSQueryPrefix(search string) string {
 	return strings.Join(tokens, " & ")
 }
 
+// writeItems rebuilds a GROUP's children inside the caller's transaction, the
+// same clear-then-insert the sets use so order, additions and removals all land
+// in one write. A SINGLE exercise has none, and clearing is harmless there.
+func (e *Exercise) writeItems(ctx context.Context, tx *sqlx.Tx) error {
+	rows, err := database.TxQuery(ctx, tx, "exercises/delete_items", e.ID)
+	if err != nil {
+		return err
+	}
+	// Drain it: an unread result leaves the connection mid-statement and the
+	// next query on this tx dies with "unexpected Parse response".
+	rows.Close()
+	if e.Kind != ExerciseKindGroup || len(e.Items) == 0 {
+		return nil
+	}
+	for i := range e.Items {
+		e.Items[i].GroupID = e.ID
+		e.Items[i].ItemOrder = i + 1
+	}
+	_, err = database.TxExecuteQuery(tx, "exercises/create_items", e.Items)
+	return err
+}
+
 func (e *Exercise) Create(ctx context.Context) error {
 	tx, err := database.GetDB().Beginx()
 	if err != nil {
@@ -133,6 +190,7 @@ func (e *Exercise) Create(ctx context.Context) error {
 		"exercises/create",
 		e.UserID, e.Name, e.Description, e.Public, e.SportType, e.MediaID,
 		e.TrackWeight, e.TrackDistance, e.TrackGrade, e.TrackHeight,
+		e.Kind, e.Rounds, e.RoundRest, e.RoundDuration,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -158,6 +216,11 @@ func (e *Exercise) Create(ctx context.Context) error {
 		}
 	}
 
+	if err := e.writeItems(ctx, tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -166,6 +229,7 @@ func (e *Exercise) Create(ctx context.Context) error {
 		return err
 	}
 	_ = e.SetsJson.Unmarshal(&e.Sets)
+	_ = e.ItemsJson.Unmarshal(&e.Items)
 	_ = e.MediaJson.Unmarshal(&e.Media)
 	return nil
 }
@@ -181,6 +245,7 @@ func (e *Exercise) Update(ctx context.Context) error {
 		"exercises/update",
 		e.ID, e.Name, e.Description, e.Public, e.SportType, e.MediaID,
 		e.TrackWeight, e.TrackDistance, e.TrackGrade, e.TrackHeight,
+		e.Kind, e.Rounds, e.RoundRest, e.RoundDuration,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -210,6 +275,11 @@ func (e *Exercise) Update(ctx context.Context) error {
 		}
 	}
 
+	if err := e.writeItems(ctx, tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -218,6 +288,7 @@ func (e *Exercise) Update(ctx context.Context) error {
 		return err
 	}
 	_ = e.SetsJson.Unmarshal(&e.Sets)
+	_ = e.ItemsJson.Unmarshal(&e.Items)
 	_ = e.MediaJson.Unmarshal(&e.Media)
 	return nil
 }
@@ -236,6 +307,7 @@ func GetExrcise(id uuid.UUID) (*Exercise, error) {
 		return nil, err
 	}
 	_ = e.SetsJson.Unmarshal(&e.Sets)
+	_ = e.ItemsJson.Unmarshal(&e.Items)
 	_ = e.MediaJson.Unmarshal(&e.Media)
 	return e, nil
 }

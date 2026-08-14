@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,12 +17,25 @@ import (
 	"coachwise/src/database"
 )
 
+// packageCurrency resolves the currency a package should be saved with. An
+// empty form field keeps `current` (the package's own currency on update, the
+// platform default on create); anything else must be supported and enabled.
+func packageCurrency(form *PackageForm, current string) (string, error) {
+	if strings.TrimSpace(form.Currency) == "" {
+		return current, nil
+	}
+	return models.ValidateCurrency(form.Currency)
+}
+
 // applyPackageForm copies form fields onto a package model, normalizing the
 // optional/JSON fields (custom_features defaults to [], is_active to true).
-func applyPackageForm(p *models.CoachPackage, form *PackageForm) {
+// `currency` comes from packageCurrency — already validated.
+func applyPackageForm(p *models.CoachPackage, form *PackageForm, currency string) {
 	p.Name = form.Name
+	p.Currency = currency
 	p.Description = form.Description
 	p.PriceMonthly = form.PriceMonthly
+	p.PriceQuarterly = form.PriceQuarterly
 	p.PriceAnnual = form.PriceAnnual
 	p.PriceOneTime = form.PriceOneTime
 	p.TrialDays = form.TrialDays
@@ -74,8 +88,13 @@ func packagesGroup(router *gin.Engine) {
 			AbortStatus(c, http.StatusBadRequest, "all bundled plans must be owned by the coach")
 			return
 		}
+		currency, err := packageCurrency(form, models.DefaultCurrency())
+		if err != nil {
+			Abort(c, CodeUnsupportedCurrency)
+			return
+		}
 		p := &models.CoachPackage{CoachID: user.ID}
-		applyPackageForm(p, form)
+		applyPackageForm(p, form, currency)
 		if err := p.Create(ctx); err != nil {
 			AbortServer(c, err)
 			return
@@ -155,7 +174,12 @@ func packagesGroup(router *gin.Engine) {
 			AbortStatus(c, http.StatusBadRequest, "all bundled plans must be owned by the coach")
 			return
 		}
-		applyPackageForm(p, form)
+		currency, err := packageCurrency(form, p.Currency)
+		if err != nil {
+			Abort(c, CodeUnsupportedCurrency)
+			return
+		}
+		applyPackageForm(p, form, currency)
 		if err := p.Update(ctx); err != nil {
 			AbortServer(c, err)
 			return

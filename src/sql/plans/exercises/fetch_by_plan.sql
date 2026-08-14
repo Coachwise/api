@@ -17,6 +17,51 @@ SELECT pe.*,
     'name_i18n', e.name_i18n,
     'description_i18n', e.description_i18n,
     'sport_type', e.sport_type,
+    -- A GROUP carries its rounds and its children so the runner can expand it
+    -- into round -> exercise -> set without another call.
+    'kind', e.kind,
+    'rounds', e.rounds,
+    'round_rest', e.round_rest,
+    'round_duration', e.round_duration,
+    'items', COALESCE((
+      SELECT jsonb_agg(json_build_object(
+          'id', it.id,
+          'group_id', it.group_id,
+          'exercise_id', it.exercise_id,
+          'item_order', it.item_order,
+          'rep_count', it.rep_count,
+          'duration', it.duration,
+          'rest_time', it.rest_time,
+          'exercise', json_build_object(
+            'id', ce.id,
+            'name', ce.name,
+            'name_i18n', ce.name_i18n,
+            'description', ce.description,
+            'description_i18n', ce.description_i18n,
+            'sport_type', ce.sport_type,
+            'kind', ce.kind,
+            'public', ce.public,
+            'user_id', ce.user_id,
+            'media_id', ce.media_id,
+            'track_weight', ce.track_weight,
+            'track_distance', ce.track_distance,
+            'track_grade', ce.track_grade,
+            'track_height', ce.track_height,
+            'sets', '[]'::jsonb,
+            'created_at', ce.created_at,
+            'updated_at', ce.updated_at,
+            'media', CASE
+              WHEN cm.id IS NOT NULL THEN
+                json_build_object('id', cm.id, 'url', cm.url, 'filename', cm.filename, 'created_at', cm.created_at)
+              ELSE NULL
+            END
+          )
+        ) ORDER BY it.item_order)
+      FROM exercise_items it
+      JOIN exercises ce ON ce.id = it.exercise_id AND ce.deleted_at IS NULL
+      LEFT JOIN media cm ON ce.media_id = cm.id
+      WHERE it.group_id = e.id
+    ), '[]'::jsonb),
     -- Without these the guided run can't know what to log and falls back to kg.
     'track_weight', e.track_weight,
     'track_distance', e.track_distance,

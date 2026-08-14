@@ -188,6 +188,9 @@ func plansGroup(router *gin.Engine) {
 			ExerciseOrder: form.ExerciseOrder,
 			RestTime:      form.RestTime,
 			Intensity:     form.Intensity,
+			Rounds:        form.Rounds,
+			RoundRest:     form.RoundRest,
+			RoundDuration: form.RoundDuration,
 		}
 		sets := make([]models.PlanExerciseSet, 0, len(form.Sets))
 		for _, s := range form.Sets {

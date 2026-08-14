@@ -28,14 +28,6 @@ func GetPayment(id uuid.UUID) (*Payment, error) {
 	return p, nil
 }
 
-// topUpCurrency is the wallet currency top-ups are denominated in (platform default).
-func topUpCurrency() string {
-	if s, err := GetPlatformSettings(); err == nil && s.DefaultCurrency != "" {
-		return s.DefaultCurrency
-	}
-	return "IRR"
-}
-
 // InitiateRedirectTopUp records a PENDING top-up and opens a gateway session,
 // returning the URL to send the buyer's browser to. The gateway posts its result
 // back to config CallbackURL; SettleRedirectTopUp finishes the job on callback.
@@ -43,7 +35,7 @@ func InitiateRedirectTopUp(ctx context.Context, userID uuid.UUID, amount int64, 
 	if amount <= 0 {
 		return nil, "", ErrInvalidAmount
 	}
-	currency, err := ValidateCurrency(topUpCurrency())
+	currency, err := ValidateCurrency(DefaultCurrency())
 	if err != nil {
 		return nil, "", err
 	}

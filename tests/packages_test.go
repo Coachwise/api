@@ -95,6 +95,7 @@ func packagesGroup() {
 				"name":            "Premium Monthly",
 				"description":     "Full coaching",
 				"price_monthly":   500000,
+				"price_quarterly": 1275000,
 				"trial_days":      7,
 				"video_access":    true,
 				"custom_features": []string{"weekly check-in", "nutrition"},
@@ -111,6 +112,20 @@ func packagesGroup() {
 			Expect(b["is_active"]).To(Equal(true))
 			plans, _ := b["plans"].([]interface{})
 			Expect(plans).To(HaveLen(2))
+			// No currency in the form — falls back to the platform default.
+			Expect(b["currency"]).To(Equal("IRR"))
+			Expect(b["price_quarterly"]).To(BeEquivalentTo(1275000))
+		})
+
+		It("rejects a currency the platform does not support", func() {
+			w := httptest.NewRecorder()
+			body, _ := json.Marshal(gin.H{"name": "Bad currency", "currency": "XYZ", "price_monthly": 1000})
+			req, _ := http.NewRequest("POST", "/packages", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+coachToken)
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(400))
+			Expect(decodeBody(w.Body)["code"]).To(BeEquivalentTo(1306))
 		})
 	})
 
@@ -160,6 +175,30 @@ func packagesGroup() {
 			Expect(b["name"]).To(Equal("Premium Renamed"))
 			Expect(b["is_active"]).To(Equal(false))
 			Expect(b["plan_count"]).To(BeEquivalentTo(1))
+			// The form above omits currency — that must not blank the column.
+			Expect(b["currency"]).To(Equal("IRR"))
+		})
+
+		It("normalizes a supported currency", func() {
+			w := httptest.NewRecorder()
+			body, _ := json.Marshal(gin.H{"name": "Premium Renamed", "currency": "irr"})
+			req, _ := http.NewRequest("PUT", "/packages/"+packageID, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+coachToken)
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(200))
+			Expect(decodeBody(w.Body)["currency"]).To(Equal("IRR"))
+		})
+
+		It("rejects an unsupported currency on update", func() {
+			w := httptest.NewRecorder()
+			body, _ := json.Marshal(gin.H{"name": "Premium Renamed", "currency": "XYZ"})
+			req, _ := http.NewRequest("PUT", "/packages/"+packageID, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+coachToken)
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(400))
+			Expect(decodeBody(w.Body)["code"]).To(BeEquivalentTo(1306))
 		})
 	})
 

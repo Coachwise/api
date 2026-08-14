@@ -494,6 +494,155 @@ func exerciseGroup() {
 		})
 	})
 
+	// A group is an exercise that references other exercises and repeats them as
+	// rounds. Children must be SINGLE, which is what keeps groups one level deep.
+	Describe("Exercise Groups", func() {
+		var childA, childB, groupID string
+
+		newSingle := func(name string) string {
+			w := httptest.NewRecorder()
+			body, _ := json.Marshal(gin.H{
+				"name": name, "description": name, "sport_type": "STRENGTH",
+				"sets": []gin.H{{"rest_time": 30e9, "rep_count": 10}},
+			})
+			req, _ := http.NewRequest("POST", "/exercises", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+authTokens[0])
+			router.ServeHTTP(w, req)
+			return decodeBody(w.Body)["id"].(string)
+		}
+
+		postGroup := func(payload gin.H) *httptest.ResponseRecorder {
+			w := httptest.NewRecorder()
+			body, _ := json.Marshal(payload)
+			req, _ := http.NewRequest("POST", "/exercises", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+authTokens[0])
+			router.ServeHTTP(w, req)
+			return w
+		}
+
+		BeforeEach(func() {
+			if childA == "" {
+				childA = newSingle("Group child A")
+				childB = newSingle("Group child B")
+			}
+		})
+
+		It("creates a group and returns its items in round order", func() {
+			w := postGroup(gin.H{
+				"name": "Upper circuit", "description": "circuit", "kind": "GROUP",
+				"rounds": 5, "round_rest": 90e9,
+				"items": []gin.H{
+					{"exercise_id": childA, "rep_count": 15, "rest_time": 30e9},
+					{"exercise_id": childB, "rep_count": 10, "rest_time": 0},
+				},
+			})
+			Expect(w.Code).To(Equal(201))
+			b := decodeBody(w.Body)
+			groupID = b["id"].(string)
+			Expect(b["kind"]).To(Equal("GROUP"))
+			Expect(b["rounds"]).To(BeEquivalentTo(5))
+
+			items := b["items"].([]interface{})
+			Expect(items).To(HaveLen(2))
+			first := items[0].(map[string]interface{})
+			Expect(first["exercise_id"]).To(Equal(childA))
+			Expect(first["item_order"]).To(BeEquivalentTo(1))
+			Expect(first["rep_count"]).To(BeEquivalentTo(15))
+			// The child exercise rides along so the runner needs no second call.
+			Expect(first["exercise"].(map[string]interface{})["name"]).To(Equal("Group child A"))
+			Expect(items[1].(map[string]interface{})["item_order"]).To(BeEquivalentTo(2))
+		})
+
+		It("returns the group with its items on fetch", func() {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", "/exercises/"+groupID, nil)
+			req.Header.Set("Authorization", "Bearer "+authTokens[0])
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(200))
+			Expect(decodeBody(w.Body)["items"].([]interface{})).To(HaveLen(2))
+		})
+
+		It("rejects a group containing another group (one level only)", func() {
+			w := postGroup(gin.H{
+				"name": "Nested", "description": "nope", "kind": "GROUP", "rounds": 3,
+				"items": []gin.H{{"exercise_id": groupID, "rep_count": 5}},
+			})
+			Expect(w.Code).To(Equal(400))
+		})
+
+		It("rejects a group with no exercises", func() {
+			w := postGroup(gin.H{
+				"name": "Empty", "description": "nope", "kind": "GROUP", "rounds": 3,
+				"items": []gin.H{},
+			})
+			Expect(w.Code).To(Equal(400))
+		})
+
+		It("rejects a group with neither rounds nor a duration", func() {
+			w := postGroup(gin.H{
+				"name": "No repeat", "description": "nope", "kind": "GROUP",
+				"items": []gin.H{{"exercise_id": childA, "rep_count": 5}},
+			})
+			Expect(w.Code).To(Equal(400))
+		})
+
+		It("rejects a group with both rounds and a duration", func() {
+			w := postGroup(gin.H{
+				"name": "Both", "description": "nope", "kind": "GROUP",
+				"rounds": 3, "round_duration": 1200e9,
+				"items": []gin.H{{"exercise_id": childA, "rep_count": 5}},
+			})
+			Expect(w.Code).To(Equal(400))
+		})
+
+		It("rejects an item with neither reps nor duration", func() {
+			w := postGroup(gin.H{
+				"name": "Bad item", "description": "nope", "kind": "GROUP", "rounds": 3,
+				"items": []gin.H{{"exercise_id": childA}},
+			})
+			Expect(w.Code).To(Equal(400))
+		})
+
+		It("rejects items on a single exercise", func() {
+			w := postGroup(gin.H{
+				"name": "Not a group", "description": "nope",
+				"items": []gin.H{{"exercise_id": childA, "rep_count": 5}},
+			})
+			Expect(w.Code).To(Equal(400))
+		})
+
+		It("accepts a time-capped group", func() {
+			w := postGroup(gin.H{
+				"name": "AMRAP 20", "description": "amrap", "kind": "GROUP",
+				"round_duration": 1200e9,
+				"items":          []gin.H{{"exercise_id": childA, "rep_count": 5, "rest_time": 0}},
+			})
+			Expect(w.Code).To(Equal(201))
+			b := decodeBody(w.Body)
+			Expect(b["round_duration"]).To(BeEquivalentTo(1200e9))
+			Expect(b["rounds"]).To(BeNil())
+		})
+
+		It("switching a group back to single clears its rounds and items", func() {
+			w := httptest.NewRecorder()
+			body, _ := json.Marshal(gin.H{
+				"name": "Upper circuit", "description": "now single", "kind": "SINGLE",
+				"sets": []gin.H{{"rest_time": 30e9, "rep_count": 10}},
+			})
+			req, _ := http.NewRequest("PUT", "/exercises/"+groupID, bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+authTokens[0])
+			router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(200))
+			b := decodeBody(w.Body)
+			Expect(b["kind"]).To(Equal("SINGLE"))
+			Expect(b["rounds"]).To(BeNil())
+			Expect(b["items"]).To(BeEmpty())
+		})
+	})
+
 	Describe("Exercise Performance Tracking", func() {
 		It("should track exercise performance over time", func() {
 			// Create an exercise
